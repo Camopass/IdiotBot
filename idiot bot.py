@@ -33,17 +33,6 @@ def get_starboards():
 
 words = ["person", "world", "hand", "woman", "place", "point", "government", "company", "number", "problem", "little"]
 
-questions = {                                                                                              # Define questions for the ?quiz command
-"What is the best game?": ["`Minecraft", "Fortnite", "Boblox", "[ENTER GAME HERE]"],
-"Minecraft question": ["`Cock", "Dick", "Balls", "Penis"],
-"Are Alex and Steve dating?": ["`Yes", "No", "Minecraft Dog", "Minecraft Cat"],
-"Naming a dog Dinnerbone does what?": ["`Feeds it a bone", "It turns the dog into Obama", "The PogChamp emote is displayed many times in the minecraft chat", "The Obama One"],
-"How do you create a wither?": ['Summon it with a pentagram and chanting, "Dick and balls, Dick and Balls, Dick and Balls', 'You"re mother', 'The twitch chat', "`With fucking soul sand like a normal fucking person."],
-"What is the full name of Notch?": ["`Markus A. Persson", "Demetrius R. Nossville", "[SWEDISH NAME HERE]", "Markus A. Noth"],
-"Which game inspired Notch to make Minecraft?": ["`Infiniminer", "Cave Game", "Roblox", "Your mum"],
-"Doin ya mom doin doin ya mom": ["Doin ya mom doin doin ya mom", "`Like giggty giggty giggty giggty", "Jewish space lasers confirmed", "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"]
-}
-
 q = list(questions.keys())
 
 @client.event
