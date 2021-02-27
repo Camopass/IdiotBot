@@ -13,12 +13,12 @@ class Help(commands.Cog):
         if ctx.invoked_subcommand == None:
             e = discord.Embed(title=f"Help - {ctx.author.name if ctx.author.nick == None else ctx.author.nick}",
                             description=f"Idiot bot is a simple bot that I've been working on for a bit. Here are some commands for it.", color=0x7ae19e)
-            e.add_field(name="Fun", value="Skin, Embed, Game, Quiz, Jesuslaser")
-            e.add_field(name="Server Utility", value="Starboard, Purge")
-            e.add_field(name="Random", value="Roll")
+            e.add_field(name="Fun", value="Embed, Game, Quiz, Jesuslaser, Roll")
+            e.add_field(name="Moderation", value="Starboard, Purge, Note, Kick, Ban, Tempban")
+            e.add_field(name="Other", value="TTS, Skin")
             e.set_footer(
                 text="Use ?help <command> to get more info on a command.", icon_url=e.Empty)
-            await ctx.send(embed=e)
+            await ctx.reply(embed=e)
 
 
     @help.command(name="skin")
@@ -77,7 +77,7 @@ class Help(commands.Cog):
     @help.command(name="purge")
     async def help_purge(self, ctx):
         e = discord.Embed(title="Help - Purge",
-                        description="Use ?purge <limit> [channel] [reason] to clear a certain amount of messages.")
+                        description="Use ?purge <limit> [channel] [reason] to clear a certain amount of messages.", color=green)
         await ctx.send(embed=e)
 
 
@@ -86,6 +86,54 @@ class Help(commands.Cog):
         e = discord.Embed(title="Help - Jesuslaser",
                         description="Use ?jesuslaser <target> to jesus laser them.", color=0x7ae19e)
         await ctx.send(embed=e)
+
+    @help.command(name='tts')
+    async def help_tts(self, ctx):
+        e = discord.Embed(title='Help - TTS', description='--- THIS IS A PRIVATE COMMAND --- Use ?tts {Voice Channel Name/ID (In quotes if it has a space)} {Message} -- This may take a second.', color=green)
+        await ctx.send(embed=e)
+
+    @help.group(name='note')
+    async def help_note(self, ctx):
+        e = discord.Embed(title='Help - Note', description='Notes are for adding a note to a user for things such as warns or previous actions.', color=green)
+        e.add_field(name='Help - Note - Get', value='Get notes for a user')
+        e.add_field(name='Help - Note - Add', value='Add a note to a user')
+        e.add_field(name='Help - Note - Remove', value='Remove a note from a user')
+        await ctx.send(embed=e)
+
+    @help_note.command(name='add')
+    async def help_note_add(self, ctx):
+        e = discord.Embed(title='Help - Note - Add', description='Use ?note add <USER> <NOTE> - Add a note to a user. This will persist across all servers that stupid idiot bot is in. This is only accessible to members with the administrator permission.', color=green)
+        await ctx.send(embed=e)
+
+    @help_note.command(name='get')
+    async def help_note_get(self, ctx):
+        e = discord.Embed(title="Help - Note - Get", description="Get all of a user's notes. Use ?note get <USER>", color=green)
+        await ctx.send(embed=e)
+
+    @help_note.command(name='remove')
+    async def help_note_remove(self, ctx):
+        e = discord.Embed(title='Help - Note - Remove', description='Use ?note remove <USER> <NOTE> - Remove a note from a user.', color=green)
+        await ctx.send(embed=e)
+
+    @help.command(name='tempban')
+    async def help_tempban(self, ctx):
+        e = discord.Embed(title='Help - tempban',
+         description=f'Use ?tempban <USER> <TIME> - Ban a member for the specified amount of time. This uses the same format as the remind command, d - days, h - hours, m - minutes, and s - seconds. For example, ?tempban {self.bot.mention} 3d 5h 6m 3s to ban for 3 days, 5 hours, 6 minutes, and 3 seconds.',
+          color=green)
+        await ctx.send(embed=e)
+    
+    @help.command(name='kick')
+    async def help_kick(self, ctx):
+        e = discord.Embed(title='Help - Kick', description='Use ?kick <USER> [REASON] - Kicks a user from the server. Reason defaults to "**You were kicked. ¯\\_(ツ)_/¯**"', color=green)
+        await ctx.send(embed=e)
+
+    @help.command(name='ban')
+    async def help_ban(self, ctx):
+        e = discord.Embed(title='Help - Ban', description='Use ?kick <user> [REASON] - Bans a user from the server. Reason defaults to "**You were banned. ¯\\_(ツ)_/¯**"',
+        color=green)
+        await ctx.send(embed=e)
+
+    
 
 def setup(client):
     client.add_cog(Help(client))

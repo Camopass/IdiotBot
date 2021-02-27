@@ -6,9 +6,12 @@ global green, red
 green = 0x7ae19e
 red = 0xdf4e4e
 
+
+#import IdiotLibrary
+#from IdiotLibrary import IdiotLib
+
 async def tts(text:str):
     engine = pyttsx3.init()
-    engine.say(text)
     engine.save_to_file(text, 'TTS.mp3')
     engine.runAndWait()
 
@@ -33,24 +36,27 @@ class Other(commands.Cog):
 
     @commands.command()
     async def TTS(self, ctx, vc:discord.VoiceChannel=None, *, text:str):
-        if vc == None:
-            e = discord.Embed(title="Error", description="You have to have a voice channel you moron. Like this: ?TTS General Message", color=red)
-            await ctx.send(embed=e)
-            return
-        if len(text) >= 401:
-            e = discord.Embed(title="Error", description="Message Must be 400 or Fewer in Length.", color=red)
-            await ctx.send(embed=e)
+        if 'cum' in text:
+            await ctx.reply('Shut up horny bastard.')
         else:
-            if ctx.voice_client:
-                await ctx.voice_client.disconnect()
-            message = await ctx.send(embed=discord.Embed(title="Creating TTS...", description=f"Making TTS MP3 File for message: ```{text}```", color=green))
-            await tts(text)
-            await asyncio.sleep(1)
-            e = discord.Embed(title="MP3 File Created Successfully", description=f"Successfuly created the TTS MP3 File for the message: ```{text}```", color=green)
-            await message.edit(embed=e)
-            player = discord.FFmpegPCMAudio("TTS.mp3")
-            await vc.connect()
-            await ctx.voice_client.play(player)
+            if vc == None:
+                e = discord.Embed(title="Error", description="You have to have a voice channel you moron. Like this: ?TTS General Message", color=red)
+                await ctx.send(embed=e)
+                return
+            if len(text) >= 401:
+                e = discord.Embed(title="Error", description="Message Must be 400 or Fewer in Length.", color=red)
+                await ctx.send(embed=e)
+            else:
+                if ctx.voice_client:
+                    await ctx.voice_client.disconnect()
+                message = await ctx.send(embed=discord.Embed(title="Creating TTS...", description=f"Making TTS MP3 File for message: ```{text}```", color=green))
+                await tts(text)
+                await asyncio.sleep(1)
+                e = discord.Embed(title="MP3 File Created Successfully", description=f"Successfuly created the TTS MP3 File for the message: ```{text}```", color=green)
+                await message.edit(embed=e)
+                player = discord.FFmpegPCMAudio("TTS.mp3")
+                await vc.connect()
+                await ctx.voice_client.play(player)
 
 
     @commands.command()
@@ -75,15 +81,15 @@ class Other(commands.Cog):
                     seconds += int(seconds2)
             await ctx.send(str(datetime.timedelta(seconds=seconds)))
             await ctx.send(str(datetime.timedelta(seconds=seconds)+datetime.datetime.now()))
-            conn = sqlite3.connect('reminders.db')
+            conn = sqlite3.connect('idiotbot.db')
             c = conn.cursor()
             c.execute('''INSERT INTO reminders ("author", "event", "timeExecuted", "channel") VALUES (?, "Test", ?, ?);''', (str(ctx.author.id), str(datetime.datetime.now()), str(ctx.channel.id)))
-            conn.commit()
             for row in c.execute("SELECT * FROM reminders"):
                 values = []
                 for value in row:
                     values.append(str(value))
                 await ctx.send(", ".join(values))
+            conn.commit()
             conn.close()
 
     @commands.command(name='eval')
@@ -137,11 +143,15 @@ class Other(commands.Cog):
         except Exception as e:
             await ctx.send(embed=discord.Embed(title='Error', description=f'''Error:
 ```{e}```''', color=0x7ae19e))
+
+    #@eval_fn.error()
+    #async def eval_error(self, ctx, error):
+    #    e = discord.Embed(title='Error', description='You must be the owner of the bot to use this command.', color=red)
+    #    await ctx.send(embed=e)
     
     @commands.command()
     @commands.is_owner()
     async def sql(self, ctx, *, cmd):
-        fn_name = "_eval_expr"
         conn = sqlite3.connect('idiotbot.db')
         c = conn.cursor()
         cmd = cmd.strip("` ")
@@ -156,11 +166,13 @@ class Other(commands.Cog):
                 result = '\n'.join(Q)
                 e = discord.Embed(
                     title="Results", description=f"Results: ```{result}```", color=0xdf4e4e)
-                await ctx.send(item)
+                await ctx.send(result)
             await ctx.send("Success")
         except Exception as e:
             await ctx.send(embed=discord.Embed(title='Error', description=f'''Error:
 ```{e}```''', color=0x7ae19e))
+        if conn:
+            conn.close()
 
 
     @commands.command()

@@ -1,12 +1,11 @@
-import discord, sqlite3, time, datetime, asyncio
+import discord, sqlite3, time, datetime, asyncio, aiosqlite3
 from discord.ext import commands
 global green, red
 green = 0x7ae19e
 red = 0xdf4e4e
 
-global c, conn
-conn = sqlite3.connect('idiotbot.db')
-c = conn.cursor()
+#import IdiotLibrary
+#from IdiotLibrary import IdiotLib
 
 def get_starboards():
     with open("E:\\workspace\\idiotbot\\starboards.txt", 'r') as f:
@@ -33,38 +32,40 @@ class Moderation(commands.Cog):
         if ctx.invoked_subcommand == None:
             e = discord.Embed(title="Starboard Help",
                             description="Allows users to add the :star: reaction to add a message to a new channel called \"starboard\"", colour=0xdf4e4e)
-            await ctx.send(embed=e)
+            await ctx.reply(embed=e)
 
 
-    @starboard.command(pass_context=True)
+    @starboard.command(name='add')
     @commands.has_permissions(administrator=True)
-    async def add(self, ctx):
+    async def starboard_add(self, ctx):
         channel = ctx.channel
         await ctx.send(f"Starboard channel now set to {channel.mention}")
-        star = str(get_starboards()).replace("'", "\"")
-        star = eval(star)
-        star[str(ctx.guild.id)] = str(channel.id)
-        star = str(star)
-        with open("E:\\workspace\\idiotbot\\starboards.txt", "w+") as f:
-            f.write(str(star))
-            f.close()
+        async with aiosqlite3.connect('idiotbot.db') as db:
+            async with db.execute('SELECT channel_id FROM starboard WHERE guild_id = ?', (ctx.guild.id,)) as cursor:
+                e = 0
+                for row in cursor:
+                    e += 1
+                if e == 0:
+                    await db.execute('INSERT INTO starboard VALUES (?, ?)', (ctx.guild.id, channel.id))
+                    await db.commit()
+                elif e == 1:
+                    await db.execute('UPDATE starboard SET channel_id = ? WHERE guild_id = ?', (channel.id, ctx.guild.id))
+                    await db.commit()
+                else:
+                    await ctx.send('How did you get multiple starboard channels? Oh well, better fix that I guess. <:LULW:771564349185327154>')
+                    await db.execute('DELETE FROM starboard WHERE guild_id = ?', (ctx.guild.id,))
+                    await db.execute('INSERT INTO starboard VALUES (?, ?)', (ctx.guild.id, channel.id))
+                    await db.commit()
         await ctx.send("Success. All Starboard Notifications will be sent here.")
 
 
-    @starboard.command(pass_context=True)
+    @starboard.command(name='remove')
     @commands.has_permissions(administrator=True)
-    async def remove(self, ctx):
-        channel = ctx.channel
+    async def starboard_remove(self, ctx):
         await ctx.send(f"Removing Starboard from channel {ctx.channel.mention}")
         async with ctx.typing():
-            star = str(get_starboards()).replace("'", "\"")
-            star = eval(star)
-            del star[str(ctx.guild.id)]
-            star = str(star)
-            with open("E:\\workspace\\idiotbot\\starboards.txt", "w+") as f:
-                f.write(str(star))
-                f.close()
-            await ctx.send("Success. All Starboard Notifications have been removed.")
+            async with aiosqlite3.connect('idiotbot.db') as db:
+                await db.execute('DELETE FROM starboard WHERE guild_id = ?', (ctx.guild.id,))
 
     @commands.group()
     async def note(self, ctx):
@@ -73,7 +74,11 @@ class Moderation(commands.Cog):
 
     @note.command(name="get")
     async def note_get(self, ctx, user:discord.Member):
+        conn = sqlite3.connect('idiotbot.db')
+        c = conn.cursor()
         data = c.execute("SELECT * FROM notes WHERE user = ?", (user.id,))
+        conn.commit()
+        conn.close()
         e = discord.Embed(
             title=f"Notes for {user.name}", description=f"Notes for {user.name}", color=0x7ae19e)
         for row in data:
@@ -83,6 +88,8 @@ class Moderation(commands.Cog):
     @note.command(name="add")
     @commands.has_permissions(administrator=True)
     async def note_add(self, ctx, user:discord.Member=None, *, note:str=None):
+        conn = sqlite3.connect('idiotbot.db')
+        c = conn.cursor()
         if user == None:
             e = discord.Embed(title="You have to give it a user you idiot",
                               description="Mention the person you are adding the note to jeez.", color=0x7ae19e)
@@ -97,6 +104,7 @@ class Moderation(commands.Cog):
             async with ctx.typing():
                 c.execute("INSERT INTO notes (user, note) VALUES (?, ?)", (user.id, note))
                 conn.commit()
+                conn.close()
             e = discord.Embed(
                 title=f"Added note to **{user.name}**", description=f"Added the note: `{note}` to user: `{user.name}`", color=0x7ae19e)
             await message.edit(embed=e)
@@ -104,6 +112,8 @@ class Moderation(commands.Cog):
     @note.command(name='remove')
     @commands.has_permissions(administrator=True)
     async def note_remove(self, ctx, user:discord.Member=None, *, note:str=None):
+        conn = sqlite3.connect('idiotbot.db')
+        c = conn.cursor()
         if user == None:
             e = discord.Embed(title="You forgot the user you moron!",
                               description="Maybe mention the person whose notes you want to remove?", color=0x7ae19e)
@@ -118,13 +128,14 @@ class Moderation(commands.Cog):
             async with ctx.typing():
                 c.execute("DELETE FROM notes WHERE user = ? AND note = ?", (user.id, note))
                 conn.commit()
+                conn.close()
             e = discord.Embed(
                 title="Done.", description=f"Removed note from **{user.name}**", color=0x7ae19e)
             await message.edit(embed=e)
 
     @commands.command()
     @commands.has_permissions(kick_members=True)
-    async def kick(self, ctx, user:discord.Member, *, reason:str="You were kicked. ¯\_(ツ)_/¯"):
+    async def kick(self, ctx, user:discord.Member, *, reason:str="You were kicked. ¯\\_(ツ)_/¯"):
         try:
             await user.kick(reason=reason)
             e = discord.Embed(title=f"User: {user.name} kicked.",
@@ -135,7 +146,7 @@ class Moderation(commands.Cog):
             await ctx.send(embed=e)
             
     @kick.error
-    async def kick_error(ctx, error):
+    async def kick_error(self, ctx, error):
         if isinstance(error, commands.MissingPermissions):
             e = discord.Embed(title="Error", description="You must have the permission: **Kick Members** to use this command.", color=red)
             await ctx.send(embed=e)
@@ -145,7 +156,7 @@ class Moderation(commands.Cog):
  
     @commands.command()
     @commands.has_permissions(ban_members=True)
-    async def ban(self, ctx, user:discord.Member, *, reason:str="You were banned. ¯\_(ツ)_/¯"):
+    async def ban(self, ctx, user:discord.Member, *, reason:str="You were banned. ¯\\_(ツ)_/¯"):
         try:
             await user.ban(reason=reason)
             e = discord.Embed(title=f"User: {user.name} banned.",
@@ -156,7 +167,7 @@ class Moderation(commands.Cog):
             await ctx.send(embed=e)
             
     @ban.error
-    async def ban_error(ctx, error):
+    async def ban_error(self, ctx, error):
         if isinstance(error, commands.MissingPermissions):
             e = discord.Embed(title="Error", description="You must have the permission: **ban Members** to use this command.", color=red)
             await ctx.send(embed=e)
@@ -196,6 +207,40 @@ class Moderation(commands.Cog):
                 e = discord.Embed(title="Error",
                  description="I do not have permission to ban that member. Try giving me the **ban Members** role, or putting my role higher on the role list.", color=red)
                 await ctx.send(embed=e)
+
+    @commands.group()
+    async def mute(self, ctx, user:discord.Member):
+        conn = sqlite3.connect('idiotbot.db')
+        c = conn.cursor()
+        data = c.execute('SELECT * FROM mutes WHERE guild_id = ?', (ctx.guild.id,))
+        rows = []
+        for row in data:
+            rows.append(row)
+        if rows == []:
+            e = discord.Embed(title=f"Error", description=f"Could not find any mute roles for the server: {ctx.guild.name}. You can use `?mute role add <ROLE MENTION>` to add a mute role. All roles will be applied to muted members.", color=red)
+            await ctx.send(embed=e)
+        else:
+            muteroles = c.execute('SELECT role_id FROM mutes WHERE guild_id = ?', (ctx.guild.id,))
+            for role in muteroles:
+                print(role)
+
+    @mute.group(name='role')
+    async def mute_role(self, ctx):
+        conn = sqlite3.connect('idiotbot.db')
+        c = conn.cursor()
+        data = c.execute('SELECT role_id FROM mutes WHERE guild_id = ?', (ctx.guild.id,))
+        for role in data:
+            print(role)
+
+    @mute_role.command(name='add')
+    @commands.has_permissions(administrator=True)
+    async def mute_role_add(self, ctx, *roles):
+        nroles = []
+        print(roles)
+        for role in roles:
+            nroles.append(await commands.RoleConverter().convert(ctx, role))
+        for role in nroles:
+            await ctx.send(role.name)
 
 
 def setup(client):
