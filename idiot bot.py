@@ -311,6 +311,7 @@ async def on_raw_reaction_add(payload):
 @client.command()
 @commands.has_permissions(administrator=True)
 async def prefix(ctx, *, prefix=None):
+    prefix = prefix.strip('\'"')
     if prefix == None:
         message = ctx.message
         db = await aiosqlite3.connect('idiotbot.db')
@@ -342,11 +343,9 @@ async def prefix_error(ctx, error):
         e = discord.Embed(title='Error', description='Sorry, only a moderator can change the prefix of the bot.', color=red)
         await ctx.send(embed=e)
         
-
 @client.command()
 async def idiot(ctx):
     await ctx.send("I'm an idiot, you moron.")
-
 
 @slash.slash(name="test")
 async def _test(ctx: SlashContext):
