@@ -100,6 +100,14 @@ class tags(commands.Cog):
                 conn.close()
                 e = discord.Embed(title='Error', description='You do not own this tag.', color=red)
                 await ctx.send(embed=e)
+        elif args[0].lower() == 'info':
+            name = args[1]
+            conn = sqlite3.connect('tags.db')
+            c = conn.cursor()
+            c.execute('SELECT * FROM tags WHERE guild_id=? AND name=?', (ctx.guild.id, name))
+            data = c.fetchone()
+            e = discord.Embed(title=data[0], description=f'**Name:** {data[0]} \n **Author**: {self.bot.get_user(data[2]).mention}', color=green)
+            await ctx.send(embed=e)
 
         elif len(args) != 0:
             tag = ' '.join(args)
