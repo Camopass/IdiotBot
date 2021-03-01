@@ -1,9 +1,36 @@
 import discord, asyncio, sqlite3
 from discord.ext import commands
+from discord.ext import menus
 from fuzzywuzzy import process
 global green, red
 green = 0x7ae19e
 red = 0xdf4e4e
+
+class TagListMenu(menus.Menu):
+
+    async def send_initial_message(self, ctx, channel):
+        self.pagenum = 0
+        self.page = commands.Paginator(
+            prefix=f'Tags for **{ctx.guild.name}** ```', suffix=f'```', max_size=100)
+        conn = sqlite3.connect('tags.db')
+        c = conn.cursor()
+        c.execute('SELECT name FROM tags WHERE guild_id=?', (ctx.guild.id,))
+        data = c.fetchall()
+        conn.close()
+        for row in data:
+            self.page.add_line(line=row[0])
+        self.page = self.page
+        return await ctx.send(embed=discord.Embed(title='Tag List', description=self.page.pages[self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}', color=green))
+
+    @menus.button('\U00002b05')
+    async def on_left(self, payload):
+        self.pagenum = self.pagenum - 1
+        await self.message.edit(embed=discord.Embed(title='Tag List', description=self.page.pages[self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}', color=green))
+
+    @menus.button('\U000027a1')
+    async def on_right(self, payload):
+        self.pagenum = self.pagenum + 1
+        await self.message.edit(embed=discord.Embed(title='Tag List', description=self.page.pages[self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}', color=green))
 
 class tags(commands.Cog):
     def __init__(self, bot):
@@ -55,16 +82,8 @@ class tags(commands.Cog):
             embed = discord.Embed(title=f'Tags matching query: **{query}**', description= f'```\n{sorted_}```', color=green)
             await ctx.send(embed=embed)
         elif args[0].lower() == 'list':
-            pagenum = 0
-            page = commands.Paginator(prefix=f'Tags for **{ctx.guild.name}** ```', suffix=f'```', max_size=500)
-            conn = sqlite3.connect('tags.db')
-            c = conn.cursor()
-            c.execute('SELECT name FROM tags WHERE guild_id=?', (ctx.guild.id,))
-            data = c.fetchall()
-            conn.close()
-            for row in data:
-                page.add_line(line=row[0])
-            msg = await ctx.send(embed= discord.Embed(title='Tag List', description=page.pages[pagenum], color=green))
+            list_ = TagListMenu()
+            await list_.start(ctx)
         elif args[0].lower() == 'edit':
             name = args[1]
             value = ' '.join(args[2:])

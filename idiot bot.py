@@ -1,6 +1,7 @@
-#Stupid idiot bot V1.02
+#Stupid idiot bot V1.03
 import discord, requests, json, math, random, asyncio, os, platform, aiohttp, fuzzywuzzy, aiosqlite3
 from discord.ext import commands
+from discord.ext import menus
 from fuzzywuzzy import process
 from discord import Webhook, AsyncWebhookAdapter
 from discord_slash import SlashCommand, SlashContext
@@ -23,11 +24,11 @@ async def getPrefix(bot, message):
         if not row == None:
             await cursor.close()
             await db.close()
-            return row[0]
+            return commands.when_mentioned_or(row[0])(bot, message)
         else:
             cursor = await db.execute('INSERT INTO prefixes VALUES ("?", ?)', (message.guild.id,))
             await db.commit()
-            return "?"
+            return commands.when_mentioned_or("?")
     elif message.guild == None:
         return '?'
 
@@ -123,6 +124,24 @@ async def msgReference(message, urltype):
     else:
         return 0
 
+
+class MyMenu(menus.Menu):
+    async def send_initial_message(self, ctx, channel):
+        return await channel.send(f'Hello {ctx.author}')
+
+    @menus.button('\N{THUMBS UP SIGN}')
+    async def on_thumbs_up(self, payload):
+        await self.message.edit(content=f'Thanks {self.ctx.author}!')
+
+    @menus.button('\N{THUMBS DOWN SIGN}')
+    async def on_thumbs_down(self, payload):
+        await self.message.edit(content=f"That's not nice {self.ctx.author}...")
+
+    @menus.button('\N{BLACK SQUARE FOR STOP}\ufe0f')
+    async def on_stop(self, payload):
+        self.stop()
+
+
 class CustomCtx:                                                                                                                   # Custom context for the jump_url detection
     def __init__(self, message, bot, guild, channel, author):
         self.message = message
@@ -211,7 +230,7 @@ async def on_message(message):
         prefix = row[0]
         e = discord.Embed(title='Stupid Idiot Bot', description=f'Hello! You can use this bot by using the prefix "{prefix}" You can also just mention the bot.', color=green)
         await message.reply(embed=e)
-    if message.channel.id == 746926538171351101 or message.guild.id == 472396329683779597:
+    if message.guild.id == 472396329683779597:
         if not message.author.bot:
             furrymessage = message.content.lower().replace('r', 'w').replace('l', 'w') + ' ' + random.choice(['UwU', 'OwO', '*nuzzles*', ':pleading_face:'])
             web = await message.channel.webhooks()
@@ -293,7 +312,14 @@ async def on_raw_reaction_add(payload):
                     e = True
                     break
             if ((count >= math.ceil(members/2)) or count >> 9) and not e:
-                channel = client.get_channel(eval(str(get_starboards()[str(message.guild.id)])))
+                db = await aiosqlite3.connect('idiotbot.db')
+                cursor = await db.execute('SELECT channel_id FROM starboard WHERE guild_id = ?', (message.guild.id,))
+                row = await cursor.fetchone()
+                if row == None:
+                    return await channel.send(f'Hey, {user.mention}, there is no starboard here. You can use `{await getGuildPrefix(payload.guild_id)}starboard add` in the starboard channel to add one.', delete_after=5.0)
+                await cursor.close()
+                await db.close()
+                channel = client.get_channel(row[0])
                 e = discord.Embed(title="Message", description=message.content, colour=0xf2d202, url=message.jump_url)
                 e.set_author(name=f"{message.author.name} - {count}/{members}", icon_url=message.author.avatar_url)
                 if len(message.attachments) != 0:
@@ -301,12 +327,16 @@ async def on_raw_reaction_add(payload):
                     e.set_image(url=embed.url)
                 await channel.send(message.jump_url, embed=e)
                 await message.add_reaction("\U00002705")
-                eternalstarboard = client.get_channel(805931186785878047)
-                await eternalstarboard.send(embed=e)
     if str(payload.emoji) == '\U0000274c' and payload.user_id == 379307644730474496 and payload.channel_id == 813451902774673468:
         channel = client.get_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
         await message.delete()
+
+
+@client.command()
+async def menu_example(ctx):
+    m = MyMenu()
+    await m.start(ctx)
 
 @client.command()
 @commands.has_permissions(administrator=True)

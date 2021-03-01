@@ -178,5 +178,9 @@ class Help(commands.Cog):
         e = discord.Embed(title='Help - Tag - Delete|Remove|Kill', description=f'Use {await getGuildPrefix(ctx.guild.id)}tag delete|remove|kill <name> to delete one of your tags.', color=green)
         await ctx.send(embed=e)
 
+    @help_tag.command(name='info')
+    async def help_tag_info(self, ctx):
+        e = dsicord.Embed(title='Help - Tag - Info', description=f'Use {await getGuildPrefix(ctx.guild.id)}tag info to get information on a tag.')
+
 def setup(client):
     client.add_cog(Help(client))
