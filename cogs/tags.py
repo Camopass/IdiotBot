@@ -22,6 +22,11 @@ class TagListMenu(menus.Menu):
         self.page = self.page
         return await ctx.send(embed=discord.Embed(title='Tag List', description=self.page.pages[self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}', color=green))
 
+    @menus.button('\U000023ea')
+    async def on_first(self, payload):
+        self.pagenum = 0
+        await self.message.edit(embed=discord.Embed(title='Tag List', description=self.page.pages[self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}', color=green))
+
     @menus.button('\U00002b05')
     async def on_left(self, payload):
         self.pagenum = self.pagenum - (1 if not self.pagenum == 0 else 0)
@@ -31,6 +36,15 @@ class TagListMenu(menus.Menu):
     async def on_right(self, payload):
         self.pagenum = self.pagenum + (1 if (self.pagenum + 1) != len(self.page.pages) else 0)
         await self.message.edit(embed=discord.Embed(title='Tag List', description=self.page.pages[self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}', color=green))
+
+    @menus.button('\U000023e9')
+    async def on_last(self, payload):
+        self.pagenum = len(self.page.pages) - 1
+        await self.message.edit(embed=discord.Embed(title='Tag List', description=self.page.pages[self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}', color=green))
+
+    @menus.button('\U000023f9')
+    async def on_stop(self, payload):
+        self.stop()
 
 class tags(commands.Cog):
     def __init__(self, bot):
