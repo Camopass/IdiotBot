@@ -24,12 +24,12 @@ class TagListMenu(menus.Menu):
 
     @menus.button('\U00002b05')
     async def on_left(self, payload):
-        self.pagenum = self.pagenum - 1
+        self.pagenum = self.pagenum - (1 if not self.pagenum == 0 else 0)
         await self.message.edit(embed=discord.Embed(title='Tag List', description=self.page.pages[self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}', color=green))
 
     @menus.button('\U000027a1')
     async def on_right(self, payload):
-        self.pagenum = self.pagenum + 1
+        self.pagenum = self.pagenum + (1 if (self.pagenum + 1) != len(self.page.pages) else 0)
         await self.message.edit(embed=discord.Embed(title='Tag List', description=self.page.pages[self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}', color=green))
 
 class tags(commands.Cog):
@@ -140,8 +140,7 @@ class tags(commands.Cog):
             if data == None:
                 await ctx.send(f'No tag named **{tag}**.')
             else:
-                e = discord.Embed(title=data[0], description=data[1], color=green)
-                await ctx.send(embed=e)
+                await ctx.send(data[1])
             
 
 
