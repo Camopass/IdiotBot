@@ -1,55 +1,74 @@
-import discord, asyncio, sqlite3
+import discord
+import sqlite3
 from discord.ext import commands
 from discord.ext import menus
 from fuzzywuzzy import process
+
 global green, red
 green = 0x7ae19e
 red = 0xdf4e4e
 
+
 class TagListMenu(menus.Menu):
 
     async def send_initial_message(self, ctx, channel):
-        self.pagenum = 0
-        self.page = commands.Paginator(
-            prefix=f'Tags for **{ctx.guild.name}** ```', suffix=f'```', max_size=100)
         conn = sqlite3.connect('tags.db')
         c = conn.cursor()
         c.execute('SELECT name FROM tags WHERE guild_id=?', (ctx.guild.id,))
         data = c.fetchall()
         conn.close()
+        e = 0
+        self.pagenum = 0
+        self.page = commands.Paginator(
+            prefix=f'Tags for **{ctx.guild.name}** ```', suffix=f'```', max_size=100)
         for row in data:
             self.page.add_line(line=row[0])
+            e += 1
+        if e == 0:
+            await ctx.send('No tags found.')
+            return
         self.page = self.page
-        return await ctx.send(embed=discord.Embed(title='Tag List', description=self.page.pages[self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}', color=green))
+        return await ctx.send(embed=discord.Embed(title='Tag List', description=self.page.pages[
+                                                                                    self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}',
+                                                  color=green))
 
     @menus.button('\U000023ea')
     async def on_first(self, payload):
         self.pagenum = 0
-        await self.message.edit(embed=discord.Embed(title='Tag List', description=self.page.pages[self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}', color=green))
+        await self.message.edit(embed=discord.Embed(title='Tag List', description=self.page.pages[
+                                                                                      self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}',
+                                                    color=green))
 
     @menus.button('\U00002b05')
     async def on_left(self, payload):
         self.pagenum = self.pagenum - (1 if not self.pagenum == 0 else 0)
-        await self.message.edit(embed=discord.Embed(title='Tag List', description=self.page.pages[self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}', color=green))
+        await self.message.edit(embed=discord.Embed(title='Tag List', description=self.page.pages[
+                                                                                      self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}',
+                                                    color=green))
 
     @menus.button('\U000027a1')
     async def on_right(self, payload):
         self.pagenum = self.pagenum + (1 if (self.pagenum + 1) != len(self.page.pages) else 0)
-        await self.message.edit(embed=discord.Embed(title='Tag List', description=self.page.pages[self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}', color=green))
+        await self.message.edit(embed=discord.Embed(title='Tag List', description=self.page.pages[
+                                                                                      self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}',
+                                                    color=green))
 
     @menus.button('\U000023e9')
     async def on_last(self, payload):
         self.pagenum = len(self.page.pages) - 1
-        await self.message.edit(embed=discord.Embed(title='Tag List', description=self.page.pages[self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}', color=green))
+        await self.message.edit(embed=discord.Embed(title='Tag List', description=self.page.pages[
+                                                                                      self.pagenum] + f'Page {self.pagenum + 1}/{len(self.page.pages)}',
+                                                    color=green))
 
     @menus.button('\U000023f9')
     async def on_stop(self, payload):
         self.stop()
 
+
 class tags(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-    
+
     @commands.command()
     async def tag(self, ctx, *args):
         if len(args) == 0:
@@ -64,17 +83,21 @@ class tags(commands.Cog):
             e = 0
             for row in data:
                 if row[0] == args[1]:
-                    e = discord.Embed(title='Error', description=f'Tag: {args[1]} already in use. Please contact the owner of the tag({str(self.bot.get_user(row[2]))}) or choose another name.', color=red)
+                    e = discord.Embed(title='Error',
+                                      description=f'Tag: {args[1]} already in use. Please contact the owner of the tag({str(self.bot.get_user(row[2]))}) or choose another name.',
+                                      color=red)
                     await ctx.reply(embed=e)
                     e = 1
 
             if e != 1:
                 msg = await ctx.send('Creating Tag...')
-                c.execute('INSERT INTO tags VALUES (?, ?, ?, ?)', (args[1], ' '.join(args[2:]), ctx.author.id, ctx.guild.id))
+                c.execute('INSERT INTO tags VALUES (?, ?, ?, ?)',
+                          (args[1], ' '.join(args[2:]), ctx.author.id, ctx.guild.id))
                 conn.commit()
                 conn.close()
                 await msg.delete()
-                e = discord.Embed(title=f'Success. Tag: **{args[1]}** created.', description=' '.join(args[2:]), color=green)
+                e = discord.Embed(title=f'Success. Tag: **{args[1]}** created.', description=' '.join(args[2:]),
+                                  color=green)
                 await ctx.send(embed=e)
         elif args[0].lower() == 'search':
             query = ' '.join(args[1:])
@@ -93,7 +116,8 @@ class tags(commands.Cog):
             for item in tagnames:
                 sorted_.append(item[0])
             sorted_ = '\n'.join(sorted_)
-            embed = discord.Embed(title=f'Tags matching query: **{query}**', description= f'```\n{sorted_}```', color=green)
+            embed = discord.Embed(title=f'Tags matching query: **{query}**', description=f'```\n{sorted_}```',
+                                  color=green)
             await ctx.send(embed=embed)
         elif args[0].lower() == 'list':
             list_ = TagListMenu()
@@ -105,18 +129,18 @@ class tags(commands.Cog):
             c = conn.cursor()
             c.execute('SELECT * FROM tags WHERE guild_id=? AND name=?', (ctx.guild.id, name))
             data = c.fetchone()
-            if not data == None and ctx.author.id == data[2]:
+            if not data is None and ctx.author.id == data[2]:
                 c.execute('UPDATE tags SET value = ? WHERE name=? AND guild_id=?', (value, name, ctx.guild.id))
                 conn.commit()
                 conn.close()
                 e = discord.Embed(title='Success', description=f'Tag: **{name}** updated.', color=green)
                 await ctx.send(embed=e)
-            elif data == None:
+            elif data is None:
                 e = discord.Embed(title='Error', description='This tag doesn\'t exist, idiot.', color=red)
             else:
                 e = discord.Embed(title='Error',
-                 description='You do not own this tag. Please contact the owner of this tag to ask them to edit it or delete it.',
-                  color=red)
+                                  description='You do not own this tag. Please contact the owner of this tag to ask them to edit it or delete it.',
+                                  color=red)
                 await ctx.send(embed=e)
         elif args[0].lower() in ['delete', 'remove', 'kill']:
             tag = args[1]
@@ -139,7 +163,9 @@ class tags(commands.Cog):
             c = conn.cursor()
             c.execute('SELECT * FROM tags WHERE guild_id=? AND name=?', (ctx.guild.id, name))
             data = c.fetchone()
-            e = discord.Embed(title=data[0], description=f'**Name:** {data[0]} \n **Author**: {self.bot.get_user(data[2]).mention}', color=green)
+            e = discord.Embed(title=data[0],
+                              description=f'**Name:** {data[0]} \n **Author**: {self.bot.get_user(data[2]).mention}',
+                              color=green)
             await ctx.send(embed=e)
 
         elif len(args) != 0:
@@ -151,11 +177,10 @@ class tags(commands.Cog):
             data = c.execute('SELECT * FROM tags WHERE name=? AND guild_id=?', (tag, ctx.guild.id))
             data = c.fetchone()
             conn.close()
-            if data == None:
+            if data is None:
                 await ctx.send(f'No tag named **{tag}**.')
             else:
                 await ctx.send(data[1])
-            
 
 
 def setup(client):
