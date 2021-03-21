@@ -67,7 +67,7 @@ class Other(commands.Cog):
             await message.edit(embed=e)
             player = discord.FFmpegPCMAudio("TTS.mp3")
             await vc.connect()
-            await ctx.voice_client.play(player)
+            ctx.voice_client.play(player)
 
     @commands.command()
     async def remind(self, ctx, *arg):
