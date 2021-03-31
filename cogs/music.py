@@ -123,7 +123,7 @@ class Music(commands.Cog):
         try:
             q = queue[ctx.guild.id]
             await ctx.send(q)
-        except:
+        except IndexError:
             queue[ctx.guild.id] = []
             await ctx.send("Queue is empty.")
 
@@ -207,5 +207,4 @@ class Music(commands.Cog):
 
 
 def setup(client):
-    print("Cog 'Music' Ready.")
     client.add_cog(Music(client))

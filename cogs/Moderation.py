@@ -2,16 +2,11 @@ import aiosqlite3
 import asyncio
 import datetime
 import discord
-import sqlite3
+import os
 from discord.ext import commands
 
-global green, red
-green = 0x7ae19e
-red = 0xdf4e4e
-
-
-# import IdiotLibrary
-# from IdiotLibrary import IdiotLib
+import idiotlibrary
+from idiotlibrary import red, green, red_x_emoji, check_mark_emoji
 
 
 class Moderation(commands.Cog):
@@ -39,67 +34,60 @@ class Moderation(commands.Cog):
 
     @note.command(name="get")
     async def note_get(self, ctx, user: discord.Member):
-        conn = sqlite3.connect('idiotbot.db')
-        c = conn.cursor()
-        data = c.execute("SELECT * FROM notes WHERE user = ?", (user.id,))
-        conn.commit()
-        conn.close()
+        async with aiosqlite3.connect('idiotbot.db') as db:
+            cursor = await db.execute('SELECT * FROM notes')
         e = discord.Embed(
             title=f"Notes for {user.name}", description=f"Notes for {user.name}", color=0x7ae19e)
-        for row in data:
+        for row in cursor:
             e.add_field(name=f"Note for {user.name}", value=row[1])
         await ctx.send(embed=e)
 
     @note.command(name="add")
     @commands.has_permissions(administrator=True)
     async def note_add(self, ctx, user: discord.Member = None, *, note: str = None):
-        conn = sqlite3.connect('idiotbot.db')
-        c = conn.cursor()
-        if user is None:
-            e = discord.Embed(title="You have to give it a user you idiot",
-                              description="Mention the person you are adding the note to jeez.", color=0x7ae19e)
-            await ctx.send(embed=e)
-        elif note is None:
-            e = discord.Embed(title="Need to add a note man",
-                              description="Dude if you want to add a note to a user you gotta give me the note. It's common sense dude, what ar you? British?",
-                              color=0x7ae19e)
-        else:
-            e = discord.Embed(title="Adding note to user...",
-                              description="Please wait for SQL to catch up...", color=0x7ae19e)
-            message = await ctx.send(embed=e)
-            async with ctx.typing():
-                c.execute("INSERT INTO notes (user, note) VALUES (?, ?)", (user.id, note))
-                conn.commit()
-                conn.close()
-            e = discord.Embed(
-                title=f"Added note to **{user.name}**", description=f"Added the note: `{note}` to user: `{user.name}`",
-                color=0x7ae19e)
-            await message.edit(embed=e)
+        async with aiosqlite3.connect('idiotbot.db') as db:
+            if user is None:
+                e = discord.Embed(title="You have to give it a user you idiot",
+                                description="Mention the person you are adding the note to jeez.", color=0x7ae19e)
+                await ctx.send(embed=e)
+            elif note is None:
+                e = discord.Embed(title="Need to add a note man",
+                                description="Dude if you want to add a note to a user you gotta give me the note. It's common sense dude, what ar you? British?",
+                                color=0x7ae19e)
+            else:
+                e = discord.Embed(title="Adding note to user...",
+                                description="Please wait for SQL to catch up...", color=0x7ae19e)
+                message = await ctx.send(embed=e)
+                async with ctx.typing():
+                    await db.execute("INSERT INTO notes (user, note) VALUES (?, ?)", (user.id, note))
+                    await db.commit()
+                e = discord.Embed(
+                    title=f"Added note to **{user.name}**", description=f"Added the note: `{note}` to user: `{user.name}`",
+                    color=0x7ae19e)
+                await message.edit(embed=e)
 
     @note.command(name='remove')
     @commands.has_permissions(administrator=True)
     async def note_remove(self, ctx, user: discord.Member = None, *, note: str = None):
-        conn = sqlite3.connect('idiotbot.db')
-        c = conn.cursor()
-        if user is None:
-            e = discord.Embed(title="You forgot the user you moron!",
-                              description="Maybe mention the person whose notes you want to remove?", color=0x7ae19e)
-            await ctx.send(embed=e)
-        elif note is None:
-            e = discord.Embed(title="You gotta have the note you want to remove the note!",
-                              description="Add the note you want to remove you moron!", color=0x7ae19e)
-        else:
-            e = discord.Embed(
-                title=f"Removing note from **{user.name}**...",
-                description=f"Removing note: `{note}` from user: `{user.name}`", color=0x7ae19e)
-            message = await ctx.send(embed=e)
-            async with ctx.typing():
-                c.execute("DELETE FROM notes WHERE user = ? AND note = ?", (user.id, note))
-                conn.commit()
-                conn.close()
-            e = discord.Embed(
-                title="Done.", description=f"Removed note from **{user.name}**", color=0x7ae19e)
-            await message.edit(embed=e)
+        async with aiosqlite3.connect('idiotbot.db') as db:
+            if user is None:
+                e = discord.Embed(title="You forgot the user you moron!",
+                                description="Maybe mention the person whose notes you want to remove?", color=0x7ae19e)
+                await ctx.send(embed=e)
+            elif note is None:
+                e = discord.Embed(title="You gotta have the note you want to remove the note!",
+                                description="Add the note you want to remove you moron!", color=0x7ae19e)
+            else:
+                e = discord.Embed(
+                    title=f"Removing note from **{user.name}**...",
+                    description=f"Removing note: `{note}` from user: `{user.name}`", color=0x7ae19e)
+                message = await ctx.send(embed=e)
+                async with ctx.typing():
+                    await db.execute("DELETE FROM notes WHERE user = ? AND note = ?", (user.id, note))
+                    await db.commit()
+                e = discord.Embed(
+                    title="Done.", description=f"Removed note from **{user.name}**", color=0x7ae19e)
+                await message.edit(embed=e)
 
     @commands.command()
     @commands.has_permissions(kick_members=True)
@@ -192,40 +180,30 @@ class Moderation(commands.Cog):
                 await ctx.send(embed=e)
 
     @commands.group()
-    async def mute(self, ctx, user: discord.Member):
-        conn = sqlite3.connect('idiotbot.db')
-        c = conn.cursor()
-        data = c.execute('SELECT * FROM mutes WHERE guild_id = ?', (ctx.guild.id,))
-        rows = []
-        for row in data:
-            rows.append(row)
-        if not rows:
-            e = discord.Embed(title=f"Error",
-                              description=f"Could not find any mute roles for the server: {ctx.guild.name}. You can use `?mute role add <ROLE MENTION>` to add a mute role. All roles will be applied to muted members.",
-                              color=red)
-            await ctx.send(embed=e)
-        else:
-            muteroles = c.execute('SELECT role_id FROM mutes WHERE guild_id = ?', (ctx.guild.id,))
-            for role in muteroles:
-                print(role)
+    async def mute(self, ctx):
+        e = discord.Embed(title='Mutes', description='You can mute a member with a certain role added to the bot, or you can quick add a role. (WIP)', color=green)
+        e.add_field(name='Mute - Role', value='See the roles added to muted members.')
+        e.add_field(name='Mute - Role - Add', value='Add a mute role to the server.')
+        await ctx.send(embed=e)
 
     @mute.group(name='role')
     async def mute_role(self, ctx):
-        conn = sqlite3.connect('idiotbot.db')
+        '''conn = sqlite3.connect('idiotbot.db')
         c = conn.cursor()
         data = c.execute('SELECT role_id FROM mutes WHERE guild_id = ?', (ctx.guild.id,))
         for role in data:
-            print(role)
+            print(role)'''
+        pass
 
     @mute_role.command(name='add')
     @commands.has_permissions(administrator=True)
-    async def mute_role_add(self, ctx, *roles):
-        nroles = []
-        print(roles)
-        for role in roles:
-            nroles.append(await commands.RoleConverter().convert(ctx, role))
-        for role in nroles:
-            await ctx.send(role.name)
+    async def mute_role_add(self, ctx, role:discord.Role):
+        async with aiosqlite3.connect('idiotbot.db') as db:
+            await db.execute('DELETE FROM mutes WHERE guild_id=?', (ctx.guild.id,))
+            await db.execute('INSERT INTO mutes VALUES (?, ?)', (ctx.guild.id, role.id))
+            await db.commit()
+        e = discord.Embed(title='Set Mute Role', description=f'Set mute role for **{ctx.guild.name}** to {role.mention}.', color=green)
+        await ctx.send(embed=e)
 
     @commands.group()
     async def rr(self, ctx):
@@ -254,7 +232,7 @@ class Moderation(commands.Cog):
         db = await aiosqlite3.connect('idiotbot.db')
         data = await db.execute('SELECT message_id from ReactionRoles WHERE message_id=?', (message.id,))
         e = 0
-        async for row in data:
+        async for _ in data:
             e += 1
         if e == 0:
             await ctx.send('This is not a reaction role, idiot.')
@@ -263,8 +241,133 @@ class Moderation(commands.Cog):
             await message.delete()
         await db.commit()
         await db.close()
+    
+    @commands.command()
+    async def poll(self, ctx, *, poll=None):
+        if poll is None:
+            e = discord.Embed(
+                title='Poll',
+                description='Creating poll. What should the poll be about?',
+                color=green
+            )
+            ogmessage = await ctx.send(embed=e)
+            def check(m):
+                return m.author == ctx.author and m.channel == ctx.channel
+            message = await self.bot.wait_for('message', check=check, timeout=60.0)
+            del check
+            poll = message.content
+            e = discord.Embed(
+                title='Poll',
+                description=f'Nice. The poll is for **{poll}**. Now, what should the options be?',
+                color=green
+            )
+            await ogmessage.edit(embed=e)
+        elif poll is not None:
+            e = discord.Embed(
+                title='Poll',
+                description=f'Nice. The poll is for **{poll}**. Now, what should the options be? (use `finished|done|complete|cancel` to stop.',
+                color=green
+            )
+            message = await ctx.send(embed=e)
+        options = []
+        finished = False
+        def checkm(m):
+            return m.author == ctx.author and m.channel == ctx.channel
+        while finished == False:
+            if len(options) >= 4:
+                finished = False
+            else:
+                msg = await self.bot.wait_for('message', check=checkm, timeout=60.0)
+                if msg.content.lower() in ['finished', 'done' 'complete', 'cancel']:
+                    if msg.content.lower() in ['stop', 'cancel']:
+                        return await ctx.send('Cancelled Poll.')
+                    if len(options) <= 1:
+                        await ctx.send('You need more options than that.')
+                    else:
+                        finished = True
+                        break
+                else:
+                    e = discord.Embed(
+                        title='Option',
+                        description=f'Do you want to add the option **{msg.content}**?',
+                        color=green
+                    )
+                    confirm = await ctx.send(embed=e)
+                    await confirm.add_reaction(red_x_emoji)
+                    await confirm.add_reaction(check_mark_emoji)
+                    def checkr(reaction, user):
+                        return user == ctx.author and reaction.message == confirm
+                    try:
+                        reaction, message = await self.bot.wait_for('reaction_add', timeout=60.0, check=checkr)
+                    except asyncio.TimeoutError:
+                        await ctx.send('Cancelling Poll...', delete_after=10.0)
+                        return
+                    else:
+                        if str(reaction) == check_mark_emoji:
+                            options.append(msg.content)
+                        else:
+                            await ctx.send('Alrighty-o then.')
+        description = ''
+        numbers = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣']
+        for index, option in enumerate(options):
+            description += f'{numbers[index+1]}   **{option}**\n'
+        e = discord.Embed(
+            title=poll,
+            description=description,
+            color=green
+        )
+        message = await ctx.send(embed=e)
+        e.set_footer(text=f'Poll ID ∙ {message.id}')
+        await message.edit(embed=e)
+        for index in range(len(options)):
+            await message.add_reaction(numbers[index+1])
+
+
+    @commands.command()
+    @commands.has_permissions(administrator=True)
+    async def prefix(self, ctx, *, prefix=None):
+        prefix = prefix.strip('\'"')
+        if ctx.guild is None:
+            e = discord.Embed(
+                title='Error', description='You cannot change the prefix in DM\'s. You can only use "?".', color=red)
+            await ctx.send(embed=e)
+        if prefix is None:
+            message = ctx.message
+            db = await aiosqlite3.connect('idiotbot.db')
+            cursor = await db.execute('SELECT prefix FROM prefixes WHERE author_id = ?', (message.guild.id,))
+            row = await cursor.fetchone()
+            await cursor.close()
+            await db.close()
+            prefix = row[0]
+            e = discord.Embed(
+                title='Prefix', description=f'Current Prefix is `{prefix}`', color=green)
+            await ctx.send(embed=e)
+        else:
+            message = ctx.message
+            db = await aiosqlite3.connect('idiotbot.db')
+            cursor = await db.execute('SELECT prefix FROM prefixes WHERE author_id = ?', (message.guild.id,))
+            row = await cursor.fetchone()
+            p = row[0]
+            if p == prefix:
+                await ctx.send('That\'s already the prefix moron.')
+            else:
+                cursor = await db.execute('UPDATE prefixes SET prefix = ? WHERE author_id = ?', (prefix, ctx.guild.id))
+                await db.commit()
+                await ctx.send('Prefix updated.')
+            await cursor.close()
+            await db.close()
+
+    @prefix.error
+    async def prefix_error(ctx, error):
+        if isinstance(error, commands.MissingPermissions):
+            e = discord.Embed(title='Error', description='Sorry, only a moderator can change the prefix of the bot.',
+                            color=red)
+            await ctx.send(embed=e)
+
 
 
 def setup(client):
-    print("Cog 'Moderation' Ready.")
     client.add_cog(Moderation(client))
+
+if __name__ == '__main__':
+    os.system(r'C:/Users/Cameron/AppData/Local/Programs/Python/Python39/python.exe "e:\workspace\idiotbot\idiot bot.py"')

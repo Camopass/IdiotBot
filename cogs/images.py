@@ -1,6 +1,6 @@
 import discord, asyncio, os, sys
 from discord.ext import commands
-from PIL import Image
+from PIL import Image, ImageFilter
 from io import BytesIO
 
 # (111, 213), (302, 403)
@@ -25,10 +25,6 @@ class HiddenPrints:
 class Images(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-    
-    @commands.Cog.listener()
-    async def on_ready(self):
-        print('Cog \'Images\' Ready.')
 
     @commands.command()
     async def wanted(self, ctx, member:discord.Member=None):

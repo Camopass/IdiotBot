@@ -1,10 +1,10 @@
 import aiosqlite3
 import discord
+import os
 from discord.ext import commands
 
-global green, red
-green = 0x7ae19e
-red = 0xdf4e4e
+import idiotlibrary
+from idiotlibrary import red, green, name
 
 
 async def getGuildPrefix(guild):
@@ -23,8 +23,51 @@ async def getGuildPrefix(guild):
 class Help(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+    
+    @commands.command()
+    async def help(self, ctx, command=None):
+        if command is None:
+            cogs = []
+            for cog in self.bot.cogs:
+                cogs.append(cog)
+            cogs = ' \n -- '.join(cogs)
+            e = discord.Embed(title=f'{name(ctx.author)} - Help',
+            description=f'Here are a few categories to help you get started!\n ``` -- {cogs}```',
+            color = green
+            )
+            await ctx.send(embed=e)
+        else:
+            cogs = []
+            COGS = []
+            for cog in self.bot.cogs:
+                cogs.append(cog.lower())
+                COGS.append(cog)
+            if command.lower() in cogs:
+                for cog in self.bot.cogs:
+                    if cog.lower() == command.lower():
+                        cog = COGS[cogs.index(command.lower())]
+                        break
+            else:
+                cmds = []
+                coms = []
+                for _command in self.bot.commands:
+                    cmds.append(_command.name)
+                    for alias in _command.aliases:
+                        _command.name = alias
+                        cmds.append(_command)
+                if command in cmds:
+                    pass
+            if cog:
+                commands = self.bot.cogs[cog]
+                commands = commands.get_commands()
+                commands = ' \n -- '.join(map(lambda command:command.name, commands))
+                e = discord.Embed(title=f'{name(ctx.author)} - Help - {cog}',
+                description=f'Commands for **{cog}**: ``` -- {commands}```',
+                color=green)
+                await ctx.send(embed=e)
 
-    @commands.group()
+
+    '''@commands.group()
     async def help(self, ctx):
         if ctx.invoked_subcommand is None:
             e = discord.Embed(title=f"Help - {(ctx.author.name if ctx.author.nick is None else ctx.author.nick) if ctx.guild != None else ctx.author.name}",
@@ -220,8 +263,11 @@ class Help(commands.Cog):
     async def help_tag_info(self, ctx):
         e = discord.Embed(title='Help - Tag - Info',
                           description=f'Use {await getGuildPrefix(ctx.guild)}tag info to get information on a tag.')
-        await ctx.send(embed=e)
+        await ctx.send(embed=e)'''
 
 
 def setup(client):
     client.add_cog(Help(client))
+
+if __name__ == '__main__':
+    os.system(r'C:/Users/Cameron/AppData/Local/Programs/Python/Python39/python.exe "e:\workspace\idiotbot\idiot bot.py"')

@@ -6,7 +6,12 @@ import aiohttp
 import time
 import datetime
 import math
+import asyncio
+import os
 
+import idiotlibrary
+
+from idiotlibrary import get_non_bot_members, convert_emoji, to_string, name, get_raw_count, red, green
 # -----
 
 '''
@@ -39,44 +44,18 @@ accepted_filetypes = [
     'jfif'
 ]
 
-#Functions
-
-async def get_non_bot_members(guild):
-    members = 0
-    for member in guild.members:
-        if not member.bot:
-            members += 1
-    return members
-# This gets the member count of any guild that does not include bot members.
-
-def name(user):
-    if user.nick == None:
-        return user.name
-    else:
-        return user.nick
-#This is shorter than user.name if user.nick == None else user.nick
-
-async def to_string(c):
-    digit = f'{ord(c):x}'
-    return fr'\{digit:>08}'
-#Get the \U value of a character
-
-async def convert_emoji(ctx, emoji):
-    try:
-        emoji = await commands.EmojiConverter().convert(ctx, emoji)
-    except commands.BadArgument:
-        emoji = await to_string(emoji)
-    finally:
-        return emoji.count
-#\U if standard emoji and <:name:id> if custom
-
-async def get_raw_count(bot, payload):
-    message = await bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
-    for reaction in message.reactions:
-        if str(reaction.emoji) == str(payload.emoji):
-            return reaction.count
-    return 0
-
+async def get_star_count(message0, message1, emoji_name):
+    reaction_count_1 = []
+    for reaction in message0.reactions:
+        if str(reaction.emoji) == emoji_name:
+            async for user in reaction.users():
+                reaction_count_1.append(user)
+    for reaction in message1.reactions:
+        if str(reaction) == emoji_name:
+            async for user in reaction.users():
+                if not user in reaction_count_1:
+                    reaction_count_1.append(user)
+    return len(reaction_count_1) - 1
 #Exceptions
 
 class NoStarboardFound(Exception):
@@ -89,9 +68,23 @@ class MessageNotSent(Exception):
 
 #Classes
 
-class StarboardMessage:
+
+class CustomCtx:  # Custom context for the jump_url detection
+    def __init__(self, message, bot):
+        self.message = message
+        self.bot = bot
+        self.guild = message.guild
+        self.channel = message.channel
+        self.author = message.author
+
+
+async def StarboardMessage(message, star_count, starboard_id=None):
+    star = StarboardMessage_()
+    return await star.init(message, star_count, starboard_id)
+
+class StarboardMessage_:
     @classmethod
-    async def init(self, message, star_count, starboard_id = None):
+    async def init(self, message, star_count, starboard_id=None):
         #Static class construction
         self.original_message = message
         self.author = message.author
@@ -100,19 +93,20 @@ class StarboardMessage:
         self.guild_id = message.guild.id
         self.count = star_count
         self.starboard_id = starboard_id
+        self.channel = message.channel
         #Variable construction
-        '''db = await aiosqlite3.connect('idiotbot.db')
-        async with db.execute('SELECT * FROM starboards WHERE guild_id=?', (self.guild_id)) as cursor:
-            async for row in cursor:
+        db = await aiosqlite3.connect('idiotbot.db')
+        async with db.execute('SELECT * FROM starboards WHERE guild_id=?', (self.guild_id,)) as cursor:
+            for row in cursor:
                 is_starboard = True
                 #Store that there is starboard data there
+                self.starboard_id = row[0]
                 self.emoji_name = row[1]
                 self.limit = row[2]
-                self.starboard_id = row[0]
         if not is_starboard:
             raise NoStarboardFound(
                 'No starboard was found when creating a message.')
-        await db.close()'''
+        await db.close()
         self.embed = discord.Embed(title='Message', url=self.jump_url, description=self.original_message.content,
                                    color=star_color)
         self.embed.add_field(name='Jump!', value=f'[Jump!]({self.jump_url})')
@@ -124,7 +118,7 @@ class StarboardMessage:
         attachments = self.original_message.attachments
         for attachment in attachments:  # Attach any images from the original message to the starboard message
             if attachment.filename.split('.')[1] in accepted_filetypes:
-                if attachments.index(attachment) == 0 and not  attachment.width == None:
+                if attachments.index(attachment) == 0 and not attachment.width == 0:
                     self.embed.set_image(url=attachment.url)
                 else:
                     self.attachments.append(attachment)
@@ -134,7 +128,8 @@ class StarboardMessage:
     
     async def send(self, bot, guild_id):
         if self.starboard_id != None:
-            await bot.get_channel(self.starboard_id).send(self.embed)
+            self.message = await bot.get_channel(self.starboard_id).send(embed=self.embed)
+            await self.message.add_reaction(self.emoji_name.strip('<>'))
         else:
             db = await aiosqlite3.connect('idiotbot.db')
             async with db.execute('SELECT channel_id FROM starboards WHERE guild_id=?', (guild_id,)) as cursor:
@@ -147,39 +142,42 @@ class StarboardMessage:
                 else:
                     message = await channel.send(content=self.original_message.id, embed=self.embed)
                     self.message = message
-                    await self.message.add_reaction(star_emoji)
+                    await self.message.add_reaction(self.emoji_name.strip('<>'))
                     return message
 
     async def remove(self):
         try:
             return await self.message.delete()
-        except:
+        except Exception:
             raise MessageNotSent('Cannot remove message that has not been sent.')
 
     async def update(self):
         try:
-            await self.message.edit(embed=self.embed)
+            await self.message.edit(content=self.original_message.id, embed=self.embed)
             return self.message
-        except:
+        except Exception:
             raise MessageNotSent('Cannot edit message that has not been sent.')
 
     async def edit_star_count(self, star_count):
         self.count = star_count
-        author = self.embed.author
-        author = author.split(' - ')[1]
-        author = f'{await name(self.author)} - {author}'
-        await self.embed.set_author(name=author, icon_url=self.icon_url)
-        await self.update()
+        author = f'{name(self.author)} - {star_count}'
+        self.embed.set_author(name=author, icon_url=self.icon_url)
+        await self.update(self)
         return self.message
 
-
-'''class StarboardFromMessage(StarboardMessage):
-    async def __init__(self, message):
-        embed = message.embeds[0]
-        url = embed.fields[0].value # [Jump!](URL)
-        url = url.split('(')[1] # URL)
-        url = url.split(')')[0] # URL
-        await message.channel.send(url)'''
+async def StarboardFromMessage(message_, limit, bot):
+    try:
+        embed = message_.embeds[0]
+    except IndexError:
+        raise RuntimeError('This is not a starboard message')
+    url = embed.fields[0].value # [Jump!](URL)
+    url = url.split('(')[1] # URL)
+    url = url.split(')')[0] # URL
+    ctx = CustomCtx(message_, bot)
+    message = await commands.MessageConverter().convert(ctx, url)
+    message = await StarboardMessage(message, limit)
+    message.message = message_
+    return message
 
 #Main
 
@@ -189,26 +187,45 @@ class Starboard(commands.Cog):
     
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload):
+        if payload.guild_id == None:
+            return
         if payload.member.bot:
             return
         count = await get_raw_count(self.bot, payload)
         db = await aiosqlite3.connect('idiotbot.db') #Connect to database
-        async with db.execute('SELECT emoji_name, limit_ FROM starboards WHERE guild_id=?', (payload.guild_id,)) as cursor: #Get the emoji name and the star limit
+        async with db.execute('SELECT emoji_name, limit_, channel_id FROM starboards WHERE guild_id=?', (payload.guild_id,)) as cursor: #Get the emoji name and the star limit
             is_starboard = False
             for row in cursor:
                 is_starboard = True #Make sure that there is a starboard
                 emoji = row[0]
                 limit = row[1]
-            if not is_starboard:
-                return #Do not do anything if there is no starboard in this server
-            else:
-                emoji = star_emoji
-                members = self.bot.get_guild(payload.guild_id)
-                limit = (math.ceil(await get_non_bot_members(members) / 2)) if await get_non_bot_members(members) < 20 else 10
-                if str(payload.emoji) == emoji and count >= limit:
-                    message = await self.bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
-                    star_message = await StarboardMessage().init(message, limit)
-                    await star_message.send(star_message, self.bot, payload.guild_id)
+                channel_id = row[2]
+                if payload.channel_id == channel_id:
+                    message0 = await self.bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
+                    message = await StarboardFromMessage(message0, limit, self.bot)
+                    await message.edit_star_count(message, await get_star_count(message.original_message, message0, emoji))
+                    return
+        await db.close()
+        if not is_starboard:
+            return #Do not do anything if there is no starboard in this server
+        else:
+            if str(payload.emoji) == emoji and count >= limit:
+                message = await self.bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
+                for reaction in message.reactions:
+                    if str(reaction.emoji) == idiotlibrary.check_mark_emoji:
+                        async for user in reaction.users():
+                            if user == self.bot.user:
+                                star_channel = self.bot.get_channel(channel_id)
+                                async for star in star_channel.history(limit=200):
+                                    if len(star.embeds) == 1 and star.author == self.bot.user and star.content.startswith(str(payload.message_id)):
+                                        star = await StarboardFromMessage(star, limit, self.bot)
+                                        star_count = await get_star_count(star.message, message, emoji)
+                                        await star.edit_star_count(star, star_count)
+                                        break
+                                return
+                star_message = await StarboardMessage(message, limit)
+                await star_message.send(star_message, self.bot, payload.guild_id)
+                await message.add_reaction(idiotlibrary.check_mark_emoji)
 
     @commands.group()
     async def starboard(self, ctx):
@@ -220,16 +237,62 @@ class Starboard(commands.Cog):
 
     @starboard.command(name='add')
     @commands.has_permissions(administrator=True)
-    async def starboard_add(self, ctx):
-        return
+    async def starboard_add(self, ctx, emoji:idiotlibrary.StarboardEmojiConverter=star_emoji, limit:int=None):
+        if limit is None:
+            members = await get_non_bot_members(ctx.guild)
+            limit = 10 if members > 20 else math.ceil(members / 2)
+        msg = await ctx.send(embed=discord.Embed(title='Confirm',
+         description=f'Are you sure that you want to add a starboard to **{ctx.guild.name}**, channel **{ctx.channel.name}**, with the emoji {emoji} and the limit {limit}?',
+         color=green))
+        await msg.add_reaction(idiotlibrary.check_mark_emoji)
+        await msg.add_reaction(idiotlibrary.red_x_emoji)
+        def check(reaction, user):
+            return user == ctx.author
+        try:
+            reaction, _ = await self.bot.wait_for('reaction_add', timeout=60.0, check=check)
+        except asyncio.TimeoutError:
+            await ctx.send('No response found. Cancelling staboard.', delete_after=10)
+        else:
+            if str(reaction) == idiotlibrary.red_x_emoji:
+                await msg.edit(embed=discord.Embed(title='Starboard Cancelled', description='Starboard has been cancelled. You can use `starboard add <emoji> <limit>` to add a new one. These will be determined automatically if left out.', colour=red))
+                await msg.clear_reactions()
+                return
+            elif str(reaction) == idiotlibrary.check_mark_emoji:
+                await msg.edit(embed=discord.Embed(title='Okay!', description='Adding Starboard to your server...', colour=green))
+                async with aiosqlite3.connect('idiotbot.db') as db:
+                    await db.execute('INSERT INTO starboards VALUES (?, ?, ?, ?)', (ctx.channel.id, emoji, limit, ctx.guild.id))
+                    await db.commit()
+                await msg.edit(embed=discord.Embed(title='Starboard Added!', description=f'A starboard has been added to: ```\nserver: {ctx.guild.name},\nchannel: {ctx.channel.name},\nemoji: {emoji},\nlimit: {limit}```', colour=green))
 
     @starboard.command(name='remove')
     @commands.has_permissions(administrator=True)
     async def starboard_remove(self, ctx):
-        return
-
+        embed = discord.Embed(title='Confirm',
+        description=f'Are you sure you want to remove starboard from **{ctx.guild.name}**?', color=green)
+        msg = await ctx.send(embed=embed)
+        await msg.add_reaction(idiotlibrary.check_mark_emoji)
+        await msg.add_reaction(idiotlibrary.red_x_emoji)
+        def check(reaction, user):
+            return user == ctx.author
+        try:
+            reaction, _ = await self.bot.wait_for('reaction_add', timeout=60.0, check=check)
+        except asyncio.TimeoutError:
+            await ctx.send('No response. Cancelling starboard remove.', delete_after=10.0)
+            await msg.delete()
+        else:
+            if str(reaction) == idiotlibrary.red_x_emoji:
+                await msg.edit(embed=discord.Embed(title='Cancelled', description='Starboard remove has been cancelled. You can use `starboard remove` to remove it at any time.', color=red))
+                return
+            elif str(reaction) == idiotlibrary.check_mark_emoji:
+                async with aiosqlite3.connect('idiotbot.db') as db:
+                    await db.execute('DELETE FROM starboards WHERE guild_id=?', (ctx.guild.id,))
+                    await db.commit()
+                await msg.edit(embed=discord.Embed(title='Removed Starboard', description=f'Removed starboard from guild **{ctx.guild.name}**.', color=green))
 
 
 
 def setup(bot):
     bot.add_cog(Starboard(bot))
+
+if __name__ == '__main__':
+    os.system(r'C:/Users/Cameron/AppData/Local/Programs/Python/Python39/python.exe "e:\workspace\idiotbot\idiot bot.py"')

@@ -3,27 +3,61 @@ import asyncio
 import datetime
 import discord
 import random
-from discord.ext import commands
-from udpy import UrbanClient
+import os
+from discord.ext import commands, menus
+from udpy import AsyncUrbanClient
 
-global green, red
-green = 0x7ae19e
-red = 0xdf4e4e
+UClient = AsyncUrbanClient()
 
-UClient = UrbanClient()
+import idiotlibrary
+from idiotlibrary import red, green
 
+sheets = {
+    'interview':
+    [['plural noun', 'plural noun', 'noun', 'color', 'verb', 'adjective', 'noun', 'noun', 'adjective', 'adjective', 'number', 'adjective', 'adjective', 'adjective', 'noun', 'verb'],
+    '''
+    QUESTION: Whatever made you choose the name "The Psycho {0}" for your group?
+    ANSWER:   All the other good names like the "Rolling {1}," "{2} Jam," and "{3} Floyd" were taken.
+    QUESTION: You not only {4} songs, but you play many {5} instruments, don't you?
+    ANSWER:   Yes. I play the electric {6}, the bass {7}, and the {8} keyboard.
+    QUESTION: You now have a(n) {9} song that is number {10} on the {11} charts. What was the inspiration for this {12} song?
+    ANSWER:   Believe it or not, it was a(n) {13} song that my mother used to sing to me when it was time for {14}, and it never failed to {15} me to sleep.
+    '''
+    ]
+}
 
-# import IdiotLibrary
-# from IdiotLibrary import IdiotLib
+async def SnakeGame():
+    return await SnakeGame_().init()
+
+class SnakeGame_(menus.Menu):
+    @classmethod
+    async def init(self):
+        self.length = 10
+        self.width = 10
+    
+    async def generate_board(self, index:int) -> list:
+        width = []
+        height = []
+        [width.append(index) for item in range(self.width)]
+        [height.append(width) for item in range(self.height)]
+        print(height)
+        return height
 
 class Fun(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     @commands.command()
-    async def urban(self, ctx, word):
-        defs = UClient.get_definition(word)
-        await ctx.send(defs[0])
+    async def urban(self, ctx, *, word):
+        defs = await UClient.get_definition(word)
+        try:
+            definition = defs[0].definition
+        except IndexError:
+            return await ctx.send('Could not find a definition for that')
+        if len(definition) < 1000:
+            await ctx.send(f'```{definition}```')
+        else:
+            await idiotlibrary.pages_simple(ctx, definition)
 
     @commands.command()
     async def embed(self, ctx, title="Title", *, description="Description"):
@@ -108,7 +142,59 @@ class Fun(commands.Cog):
         '''Praise the Sun'''
         await ctx.send('https://i.imgur.com/K8ySn3e.gif')
 
+    @commands.command()
+    async def madlibs(self, ctx, sheet=None):
+        if sheet is None:
+            sheet = sheets['interview']
+        else:
+            try:
+                sheet = sheets[sheet]
+            except IndexError:
+                await ctx.send('That\'s not a sheet idiot.')
+        responses = []
+        for word in sheet[0]:
+            e = discord.Embed(
+                title=f'Madlibs',
+                description=f'Word for: **{word}**? (Reply to this message with your word)',
+                color=green
+            )
+            message = await ctx.send(embed=e)
+            def check(m):
+                try:
+                    return m.author == ctx.author and message.channel == m.channel and m.reference.message_id == message.id
+                except AttributeError:
+                    return False
+            msg = await self.bot.wait_for('message', check=check, timeout=180.0)
+            responses.append(msg.content)
+        await idiotlibrary.pages_simple(ctx, sheet[1].format(*responses))
+
+    @commands.command()
+    async def monkenoises(self, ctx, vc: discord.VoiceChannel = None):
+        if vc is None:
+            await ctx.send('Please specify a voice channel.')
+        else:
+            if ctx.voice_client:
+                await ctx.voice_client.disconnect()
+            message = await ctx.send(f'Monke-ing the voice channel **{vc.name}**')
+            player = discord.FFmpegPCMAudio('MonkeySounds.mp3')
+            await vc.connect()
+            ctx.voice_client.play(player)
+            await message.edit(content=f'**{vc.name}** has been monke noised.')
+            await asyncio.sleep(120)
+            if ctx.voice_client.is_playing():
+                pass
+            else:
+                await ctx.voice_client.disconnect()
+
+
 
 def setup(client):
-    print("Cog 'Fun' Ready.")
     client.add_cog(Fun(client))
+
+async def main():
+    snake_game = await SnakeGame()
+    snake_game.generate_board(3)
+
+if __name__ == '__main__':
+    #asyncio.run(main())
+    os.system(r'C:/Users/Cameron/AppData/Local/Programs/Python/Python39/python.exe "e:\workspace\idiotbot\idiot bot.py"')

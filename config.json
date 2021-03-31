@@ -1,0 +1,19 @@
+{
+    "BotOwnerID": "379307644730474496",
+    "DefaultPrefix": "?",
+    "QuizQuestions": {
+        "What is the full name of Notch?": [
+            "`Markus A. Persson",
+            "Demetrius R. Nossville",
+            "[SWEDISH NAME HERE]",
+            "Markus A. Noth"
+        ],
+        "Which game inspired Notch to make Minecraft?": [
+            "`Infiniminer",
+            "Cave Game",
+            "Roblox",
+            "Your mum"
+        ]
+    },
+    "Database Directory": "idiotbot.db"
+}
