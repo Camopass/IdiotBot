@@ -62,6 +62,7 @@ class TagListMenu(menus.Menu):
 
     @menus.button('\U000023f9')
     async def on_stop(self, payload):
+        await self.message.clear_reactions()
         self.stop()
 
 
@@ -148,15 +149,19 @@ class tags(commands.Cog):
             c = conn.cursor()
             c.execute('SELECT * FROM tags WHERE name=? AND guild_id = ?', (tag, ctx.guild.id))
             data = c.fetchone()
-            if ctx.author.id == data[2]:
-                c.execute('DELETE FROM tags WHERE name=? AND guild_id=?', (tag, ctx.guild.id))
-                conn.commit()
-                conn.close()
-                await ctx.send(f'Successfully deleted tag **{tag}**')
-            else:
-                conn.close()
-                e = discord.Embed(title='Error', description='You do not own this tag.', color=red)
-                await ctx.send(embed=e)
+            try:
+                if ctx.author.id == data[2]:
+                    c.execute('DELETE FROM tags WHERE name=? AND guild_id=?', (tag, ctx.guild.id))
+                    conn.commit()
+                    conn.close()
+                    await ctx.send(f'Successfully deleted tag **{tag}**')
+                else:
+                    conn.close()
+                    e = discord.Embed(
+                        title='Error', description='You do not own this tag.', color=red)
+                    await ctx.send(embed=e)
+            except TypeError:
+                await ctx.send('Could not find that tag.')
         elif args[0].lower() == 'info':
             name = args[1]
             conn = sqlite3.connect('tags.db')

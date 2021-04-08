@@ -1,11 +1,16 @@
 import aiosqlite3
 import ast
 import asyncio
+import aiohttp
 import datetime
 import discord
 import pyttsx3
 import inspect
 import datetime
+import random
+import traceback
+import parsedatetime
+import os
 from discord.ext import commands
 from mojang import MojangAPI
 from tabulate import tabulate
@@ -13,6 +18,19 @@ from sqlite3 import OperationalError
 
 import idiotlibrary
 from idiotlibrary import green, red
+
+'''
+TODO
+
+-- Add a user friendly datetime system.
+-- Move tts to the music section.
+-- Int to binary
+-- translate
+-- Syntax highlighting for ?view
+
+'''
+
+cal = parsedatetime.Calendar()
 
 async def tts(text: str):
     engine = pyttsx3.init()
@@ -35,6 +53,53 @@ def insert_returns(body):
     if isinstance(body[-1], ast.With):
         insert_returns(body[-1].body)
 
+
+@commands.command(hidden=True)
+async def idiot(self, ctx, *, timestamp: str):
+    months = ['january', 'february', 'march', 'april', 'may', 'june',
+              'july', 'august', 'september', 'october', 'november', 'december']
+    if timestamp.lower().startswith('on'):
+        for month in months:
+            if month in timestamp.lower():
+                tmonth = months.index(month) + 1
+                day = timestamp.lower().split(month)[1].replace(
+                    'th', '').replace('st', '').replace('rd', '')
+                day, year = day.split(',')
+                day = day.strip(' ')
+                year = year.strip(' ')
+                print(day, tmonth, year)
+                try:
+                    year, arg = year.split(' ', maxsplit=2)
+                except ValueError:
+                    year = year.split(' ', maxsplit=2)[0]
+                    arg = None
+                break
+        await ctx.send(f'{tmonth}, {day}, {year} : {arg}')
+    if timestamp.lower().startswith('in'):
+        days, months, years = (0, 0, 0)
+        if 'days' in timestamp.lower():
+            # in 3 days, 17 months, 7 years
+            days = timestamp.lower().split(' days')[0]
+            # in 3
+            days = days.split(' ')
+            days = days[len(days)-1]
+            # 3
+        if 'months' in timestamp.lower():
+            # in 3 days, 17 months, 7 years
+            months = timestamp.lower().split(' months')[0]
+            # in 3 days, 17
+            months = months.split(' ')
+            months = months[len(months)-1]
+            # 17
+        if 'years' in timestamp.lower():
+            # in 3 days, 17 months, 7 years
+            years = timestamp.lower().split(' years')[0]
+            # in 3 days, 17 months, 7
+            years = years.split(' ')
+            years = years[len(years)-1]
+            # 7
+        await ctx.send(f'{days}, {months}, {years}')
+
 class TimeConverter(commands.Converter):
     async def convert(self, ctx, argument):
         time = argument.split(':')
@@ -52,7 +117,7 @@ class Other(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command()
+    @commands.command(description='Send a message using text-to-speech robot voice. Use {0}tts [Voice Channel] [Message]')
     async def tts(self, ctx, vc: discord.VoiceChannel = None, *, text: str):
         if vc is None:
             e = discord.Embed(title="Error",
@@ -78,8 +143,17 @@ class Other(commands.Cog):
             player = discord.FFmpegPCMAudio("TTS.mp3")
             await vc.connect()
             ctx.voice_client.play(player)
+            await asyncio.sleep(180)
+            if ctx.voice_client.is_playing():
+                pass
+            else:
+                await ctx.voice_client.disconnect()
     
-    @commands.command()
+    @commands.command(description='Use {0}choose and then have all of the choices you want to choose from. The choices are separated by spaces. You can add quotes around the option to keep it as once.')
+    async def choose(self, ctx, *choices):
+        await ctx.send(random.choice(choices))
+    
+    @commands.command(description='View the source code for a command. Use {0}source [command], or {0}source for a link to the github page.')
     async def source(self, ctx, command=None):
         if command is None:
             return await ctx.send('My full source code is available at https://github.com/Camopass/IdiotBot')
@@ -96,14 +170,14 @@ class Other(commands.Cog):
                             return await idiotlibrary.pages_simple(ctx, source, prefix='```py')
             await ctx.send('Could not find that command.')
     
-    @commands.command()
+    @commands.command(description='Convert binary to a decimal integer.')
     async def binary(self, ctx, b: str):
         r = 0
         for index, i in enumerate(b):
             r += int(i) * (2 ** (len(b) - index - 1))
         await ctx.send(r)
     
-    @commands.command()
+    @commands.command(description='Suggest a feature for the bot. I will not be adding slash commands, or the "/" prefix, as those commands suck.')
     async def suggest(self, ctx, *, suggestion):
         channel = self.bot.get_channel(813451902774673468)
         e = discord.Embed(
@@ -115,22 +189,22 @@ class Other(commands.Cog):
     
     @commands.command()
     async def botinfo(self, ctx):
-        e = discord.Embed(title=f'Info for: **{client.user.name}**',
+        e = discord.Embed(title=f'Info for: **{self.bot.user.name}**',
                         description=f'Information for Stupid Idiot Bot. Stupid Idiot Bot has been in development for: **{(datetime.date.today() - datetime.date(year=2020, month=12, day=31)).days}** days.',
                         color=green)
         e.add_field(name='Commands',
-                    value=f'{client.user.name} has **{len(client.commands)}** commands.')
+                    value=f'{self.bot.user.name} has **{len(self.bot.commands)}** commands.')
         members = []
-        for guild in client.guilds:
+        for guild in self.bot.guilds:
             for member in guild.members:
                 if not member in members:
                     members.append(member)
         e.add_field(name='Servers',
-                    value=f'{client.user.name} is in **{len(client.guilds)}** servers and can see **{len(members)}** users.')
+                    value=f'{self.bot.user.name} is in **{len(self.bot.guilds)}** servers and can see **{len(members)}** users.')
         await ctx.send(embed=e)
 
-    @commands.command()
-    async def remind(self, ctx, *arg):
+    @commands.command(description='WIP: Does not work at the moment.')
+    async def remind(self, ctx, event, *arg):
         args = arg
         if args is None:
             await ctx.send("Must pass arguments. I cannot understand that timestamp.")
@@ -149,10 +223,21 @@ class Other(commands.Cog):
                 if argument.endswith("s"):
                     seconds2 = argument.split("s")[0]
                     seconds += int(seconds2)
-            await ctx.send(str(datetime.timedelta(seconds=seconds)))
-            await ctx.send(str(datetime.timedelta(seconds=seconds) + datetime.datetime.now()))
+            time = datetime.timedelta(seconds=seconds) + datetime.datetime.now()
+            async with aiosqlite3.connect('idiotbot.db') as db:
+                await db.execute('INSERT INTO reminders VALUES (?, ?, ?, ?)', (ctx.author.id, event, str(time), ctx.channel.id))
+                await db.commit()
+            h_time = time.strftime('%A the %d, %B, %Y at %H:%M')
+            return await ctx.send (
+                embed=discord.Embed (
+                    title=f'Event scheduled to be on {h_time}',
+                    description=f'Event: `{event}`',
+                    color=green
+                )
+            )
 
-    @commands.command(name='eval')
+
+    @commands.command(name='eval', hidden=True)
     @commands.is_owner()
     async def eval_fn(self, ctx, *, cmd):
         fn_name = "_eval_expr"
@@ -190,7 +275,7 @@ class Other(commands.Cog):
     #    e = discord.Embed(title='Error', description='You must be the owner of the bot to use this command.', color=red)
     #    await ctx.send(embed=e)
 
-    @commands.command()
+    @commands.command(hidden=True)
     @commands.is_owner()
     async def select(self, ctx, select, table, *, where=""):
         try:
@@ -213,7 +298,7 @@ class Other(commands.Cog):
                 await db.close()
         
 
-    @commands.command()
+    @commands.command(description='Use {0}skin [Minecraft Username] to retrieve the skin of that user. Sometimes it might take a while to update, so beware of that. It is a glitch with discord, not the bot.')
     async def skin(self, ctx, *, user: str):
         uuid = MojangAPI.get_uuid(user)
         if uuid is None:
@@ -229,11 +314,11 @@ class Other(commands.Cog):
             e.set_image(url=render)
             await ctx.send(embed=e)
 
-    @commands.command()
+    @commands.command(hidden=True)
     async def days_until(self, ctx, day=datetime.date(year=2021, month=5, day=26)):
         await ctx.send(str(day - datetime.date.today()))
     
-    @commands.command()
+    @commands.command(description='Attach a .txt file to this message and the bot will send a viewing menu for the .txt file.')
     async def view(self, ctx):
         if len(ctx.message.attachments) > 0:
             file_ = ctx.message.attachments[0]
@@ -246,7 +331,7 @@ class Other(commands.Cog):
                 content = content.replace('```', '\'\'\'')
                 await ctx.send(f'```{content}```')
     
-    @commands.group()
+    @commands.group(hidden=True)
     async def time(self, ctx):
         pass
 
@@ -257,3 +342,7 @@ class Other(commands.Cog):
 
 def setup(client):
     client.add_cog(Other(client))
+
+if __name__ == '__main__':
+    os.system(
+        r'C:/Users/Cameron/AppData/Local/Programs/Python/Python39/python.exe "e:/workspace/idiotbot/idiot bot.py"')

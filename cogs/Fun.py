@@ -26,28 +26,28 @@ sheets = {
     ]
 }
 
-async def SnakeGame():
-    return await SnakeGame_().init()
 
-class SnakeGame_(menus.Menu):
-    @classmethod
-    async def init(self):
+class SnakeGame(menus.Menu):
+    def __init__(self):
         self.length = 10
         self.width = 10
+    
+    def __str__(self):
+        return self.board
     
     async def generate_board(self, index:int) -> list:
         width = []
         height = []
         [width.append(index) for item in range(self.width)]
-        [height.append(width) for item in range(self.height)]
-        print(height)
+        [height.append(width) for item in range(self.length)]
+        self.board = height
         return height
 
 class Fun(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command()
+    @commands.command(description='Get the definition of a word off of Urban Dictionary.')
     async def urban(self, ctx, *, word):
         defs = await UClient.get_definition(word)
         try:
@@ -59,7 +59,7 @@ class Fun(commands.Cog):
         else:
             await idiotlibrary.pages_simple(ctx, definition)
 
-    @commands.command()
+    @commands.command(description='Use the bot to send an embed in the chat with {0}embed [title] [description]')
     async def embed(self, ctx, title="Title", *, description="Description"):
         e = discord.Embed(description=description, title=title,
                           color=0x7ae19e, author=ctx.author.name)
@@ -71,7 +71,7 @@ class Fun(commands.Cog):
         await web.delete()
         await ctx.message.delete()
 
-    @commands.command()
+    @commands.command(description='Roll a n dies with n sides, with the format [number]d[sides]. Use {0}roll NdN to roll.')
     async def roll(self, ctx, *, dice: str = None):
         result = []
         sum = 0
@@ -107,7 +107,7 @@ class Fun(commands.Cog):
                 title=f"Rolls- **{dice}**", description=f'{sum} - {result}', color=0x7ae19e)
             await ctx.send(embed=embed)
 
-    @commands.command()
+    @commands.command(hidden=True)
     async def birthday(self, ctx, date: str):
         now = datetime.datetime.now().strftime("%m/%d")
         await ctx.send(now)
@@ -127,22 +127,22 @@ class Fun(commands.Cog):
                 color=0xdf4e4e)
             await ctx.send(embed=e)
 
-    @commands.command()
+    @commands.command(description='Monke')
     async def monke(self, ctx):
         e = discord.Embed(title='MONKE?????')
         e.set_image(url='https://www.placemonkeys.com/500/350?random')
         await ctx.send(embed=e)
 
-    @commands.command()
+    @commands.command(description='Yum')
     async def eat(self, ctx, *, eat:str='nothing'):
         await ctx.send(f' :point_right: {eat} <:OMEGALUL:803681453715226645> {(ctx.author.name if ctx.author.nick == None else ctx.author.nick)}')
 
-    @commands.command()
+    @commands.command(description='Praise the Sun!')
     async def praise(self, ctx):
         '''Praise the Sun'''
         await ctx.send('https://i.imgur.com/K8ySn3e.gif')
 
-    @commands.command()
+    @commands.command(description='Start a madlibs session! Use {0}madlibs to start a random one and {0}madlibs <sheet> for a specific sheet. The bot will tell you the type of word you need, and the owner can reply to the message to submit it. When you are done, you can see the sheet.')
     async def madlibs(self, ctx, sheet=None):
         if sheet is None:
             sheet = sheets['interview']
@@ -168,7 +168,7 @@ class Fun(commands.Cog):
             responses.append(msg.content)
         await idiotlibrary.pages_simple(ctx, sheet[1].format(*responses))
 
-    @commands.command()
+    @commands.command(description='Monke Noises!')
     async def monkenoises(self, ctx, vc: discord.VoiceChannel = None):
         if vc is None:
             await ctx.send('Please specify a voice channel.')
@@ -192,9 +192,9 @@ def setup(client):
     client.add_cog(Fun(client))
 
 async def main():
-    snake_game = await SnakeGame()
-    snake_game.generate_board(3)
+    snake_game = SnakeGame()
+    await snake_game.generate_board(3)
 
 if __name__ == '__main__':
-    #asyncio.run(main())
+    asyncio.run(main())
     os.system(r'C:/Users/Cameron/AppData/Local/Programs/Python/Python39/python.exe "e:\workspace\idiotbot\idiot bot.py"')

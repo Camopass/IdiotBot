@@ -22,6 +22,11 @@ If you have an image link, it will find the image link and attach it to the embe
 You can react to either the starred message or the starboard message, but not both.
 It will have the date and time of the original star
 
+TODO
+
+-- Add image grabbing
+-- Fix custom emojis
+
 '''
 
 # -----
@@ -162,6 +167,7 @@ class StarboardMessage_:
         self.count = star_count
         author = f'{name(self.author)} - {star_count}'
         self.embed.set_author(name=author, icon_url=self.icon_url)
+        #pylint:disable=too-many-function-args
         await self.update(self)
         return self.message
 
@@ -227,7 +233,7 @@ class Starboard(commands.Cog):
                 await star_message.send(star_message, self.bot, payload.guild_id)
                 await message.add_reaction(idiotlibrary.check_mark_emoji)
 
-    @commands.group()
+    @commands.group(description='Allows users to add the :star: reaction (or a custom one) to add a message to a new channel called \"starboard\"')
     async def starboard(self, ctx):
         if ctx.invoked_subcommand is None:
             e = discord.Embed(title="Starboard Help",
@@ -235,7 +241,7 @@ class Starboard(commands.Cog):
                               colour=0xdf4e4e)
             await ctx.reply(embed=e)
 
-    @starboard.command(name='add')
+    @starboard.command(name='add', description='Use {0}starboard add <emoji> <limit> to set starboard to the channel that the message is in. By default, emoji will be :star: and the limit will be 10 or the amount of members in the server divided by two and rounded up.')
     @commands.has_permissions(administrator=True)
     async def starboard_add(self, ctx, emoji:idiotlibrary.StarboardEmojiConverter=star_emoji, limit:int=None):
         if limit is None:
@@ -264,7 +270,7 @@ class Starboard(commands.Cog):
                     await db.commit()
                 await msg.edit(embed=discord.Embed(title='Starboard Added!', description=f'A starboard has been added to: ```\nserver: {ctx.guild.name},\nchannel: {ctx.channel.name},\nemoji: {emoji},\nlimit: {limit}```', colour=green))
 
-    @starboard.command(name='remove')
+    @starboard.command(name='remove', description='Remove the starboard from your server.')
     @commands.has_permissions(administrator=True)
     async def starboard_remove(self, ctx):
         embed = discord.Embed(title='Confirm',

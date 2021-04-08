@@ -26,7 +26,7 @@ class Images(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command()
+    @commands.command(description='Put a person\'s face on a wanted poster!')
     async def wanted(self, ctx, member:discord.Member=None):
         if member == None:
             member = ctx.author
@@ -43,7 +43,7 @@ class Images(commands.Cog):
         e.set_image(url='attachment://WantedPfp.jpg')
         await ctx.send(file=image, embed=e)
 
-    @commands.command()
+    @commands.command(description='Resize an image.')
     async def resize(self, ctx, width:int, height:int, emote:discord.Emoji=None):
         image = None
 
@@ -76,7 +76,7 @@ class Images(commands.Cog):
             image = BytesIO(await image.read())
             await size(Image.open(image))
 
-    @commands.command()
+    @commands.command(description='Jesuslaser something.')
     async def jesuslaser(self, ctx, *, target: str):
         msg = await ctx.send("Targeting.")
         await asyncio.sleep(1)

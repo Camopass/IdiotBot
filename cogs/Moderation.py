@@ -13,26 +13,22 @@ class Moderation(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command()
+    @commands.command(description='Purge a channel of a certain number of messages. WIP: You can specify a certain member to purge the messages from.')
     @commands.has_permissions(manage_messages=True)
-    async def purge(self, ctx, limit: int = 10, channel: discord.ext.commands.TextChannelConverter = None, *,
-                    reason=None):
-        if channel is None:
-            await ctx.channel.purge(limit=limit + 1)
-        else:
-            await channel.purge(limit=limit + (1 if channel == ctx.channel else 0))
+    async def purge(self, ctx, limit:int, person:discord.Member):
+        channel = ctx.channel
+        await channel.purge(limit=limit + (1 if channel == ctx.channel else 0))
         e = discord.Embed(
-            title=f"Channel #{ctx.channel.name if channel is None else channel.name} has been purged of {limit} messages.",
-            description="No reason provided" if reason is None else reason, color=0xe67a7a)
+        title=f"Channel #{ctx.channel.name if channel is None else channel.name} has been purged of {limit} messages.", color=0xe67a7a)
         await ctx.send(embed=e)
 
-    @commands.group()
+    @commands.group(description='A moderator can add notes to a user and save them for later. This could be previous offenses or just any sort of note. Must be less than 1000 characters.')
     async def note(self, ctx):
         if ctx.invoked_subcommand is None:
             await ctx.send(embed=discord.Embed(title="Add notes to a user for later, this is serverwide.",
                                                description="A moderator can add notes to a user and save them for later. This could be previous offenses or just any sort of note. Must be less than 1000 characters."))
 
-    @note.command(name="get")
+    @note.command(name="get", description='Get the notes for a user.')
     async def note_get(self, ctx, user: discord.Member):
         async with aiosqlite3.connect('idiotbot.db') as db:
             cursor = await db.execute('SELECT * FROM notes')
@@ -42,7 +38,7 @@ class Moderation(commands.Cog):
             e.add_field(name=f"Note for {user.name}", value=row[1])
         await ctx.send(embed=e)
 
-    @note.command(name="add")
+    @note.command(name="add", description='Add a note to a user.')
     @commands.has_permissions(administrator=True)
     async def note_add(self, ctx, user: discord.Member = None, *, note: str = None):
         async with aiosqlite3.connect('idiotbot.db') as db:
@@ -66,7 +62,7 @@ class Moderation(commands.Cog):
                     color=0x7ae19e)
                 await message.edit(embed=e)
 
-    @note.command(name='remove')
+    @note.command(name='remove', description='Remove a note from a user.')
     @commands.has_permissions(administrator=True)
     async def note_remove(self, ctx, user: discord.Member = None, *, note: str = None):
         async with aiosqlite3.connect('idiotbot.db') as db:
@@ -89,7 +85,7 @@ class Moderation(commands.Cog):
                     title="Done.", description=f"Removed note from **{user.name}**", color=0x7ae19e)
                 await message.edit(embed=e)
 
-    @commands.command()
+    @commands.command(description='Kick a user from the server.')
     @commands.has_permissions(kick_members=True)
     async def kick(self, ctx, user: discord.Member, *, reason: str = "You were kicked. ¯\\_(ツ)_/¯"):
         try:
@@ -117,7 +113,7 @@ class Moderation(commands.Cog):
                               color=red)
             await ctx.send(embed=e)
 
-    @commands.command()
+    @commands.command(description='Ban a user from the server.')
     @commands.has_permissions(ban_members=True)
     async def ban(self, ctx, user: discord.Member, *, reason: str = "You were banned. ¯\\_(ツ)_/¯"):
         try:
@@ -144,7 +140,7 @@ class Moderation(commands.Cog):
                               description="Could not find that user. Please either mention or use the ID of the user you want to ban.",
                               color=red)
 
-    @commands.command()
+    @commands.command(description='Temporarily ban a user from the server. Use {0}tempban [user] [time]. Time is specified using the amount of [days|hours|minutes|seconds] followed by the corresponding suffix [d|h|m|s]')
     @commands.has_permissions(ban_members=True)
     async def tempban(self, ctx, user: discord.Member, *arg):
         args = arg
@@ -179,14 +175,14 @@ class Moderation(commands.Cog):
                                   color=red)
                 await ctx.send(embed=e)
 
-    @commands.group()
+    @commands.group(description='WIP: Mute a user.')
     async def mute(self, ctx):
         e = discord.Embed(title='Mutes', description='You can mute a member with a certain role added to the bot, or you can quick add a role. (WIP)', color=green)
         e.add_field(name='Mute - Role', value='See the roles added to muted members.')
         e.add_field(name='Mute - Role - Add', value='Add a mute role to the server.')
         await ctx.send(embed=e)
 
-    @mute.group(name='role')
+    @mute.group(name='role', description='WIP')
     async def mute_role(self, ctx):
         '''conn = sqlite3.connect('idiotbot.db')
         c = conn.cursor()
@@ -195,7 +191,7 @@ class Moderation(commands.Cog):
             print(role)'''
         pass
 
-    @mute_role.command(name='add')
+    @mute_role.command(name='add', description='WIP: Set a mute role.')
     @commands.has_permissions(administrator=True)
     async def mute_role_add(self, ctx, role:discord.Role):
         async with aiosqlite3.connect('idiotbot.db') as db:
@@ -205,13 +201,13 @@ class Moderation(commands.Cog):
         e = discord.Embed(title='Set Mute Role', description=f'Set mute role for **{ctx.guild.name}** to {role.mention}.', color=green)
         await ctx.send(embed=e)
 
-    @commands.group()
+    @commands.group(description='WIP: Set a message to give a user a certain role when reacting to a message.')
     async def rr(self, ctx):
         if ctx.invoked_subcommand is None:
             e = discord.Embed(title='Reaction Roles', description='Add Reaction Roles to your server!', color=green)
             await ctx.send(embed=e)
 
-    @rr.command(name='add', aliases=['make', 'create'])
+    @rr.command(name='add', aliases=['make', 'create'], description='Add a reaction role to the channel. Use {0}rr add [role] [channel]')
     async def rr_add(self, ctx, role:discord.Role=None, channel:discord.TextChannel=None):
         if role is None:
             return await ctx.send('Please mention a role.')
@@ -224,7 +220,7 @@ class Moderation(commands.Cog):
         await db.commit()
         await db.close()
 
-    @rr.command(name='remove', aliases=['delete', 'kill', 'rm'])
+    @rr.command(name='remove', aliases=['delete', 'kill', 'rm'], description='WIP: Remove a reaction role.')
     async def rr_remove(self, ctx, message:discord.Message=None):
         if message is None:
             message = ctx.message.reference
@@ -242,7 +238,7 @@ class Moderation(commands.Cog):
         await db.commit()
         await db.close()
     
-    @commands.command()
+    @commands.command(brief='Create a poll that people can react to.', description='Use {0}poll to create a poll that people can react to. Once you use {0}poll, send messages and add the :white_check_mark: emoji. Send finished when you are done.')
     async def poll(self, ctx, *, poll=None):
         if poll is None:
             e = discord.Embed(
@@ -323,7 +319,7 @@ class Moderation(commands.Cog):
             await message.add_reaction(numbers[index+1])
 
 
-    @commands.command()
+    @commands.command(description='See the prefix for the server, or set a prefix. If your prefix has spaces at the end, surround it in `"` or `\'`.')
     @commands.has_permissions(administrator=True)
     async def prefix(self, ctx, *, prefix=None):
         prefix = prefix.strip('\'"')
@@ -358,7 +354,7 @@ class Moderation(commands.Cog):
             await db.close()
 
     @prefix.error
-    async def prefix_error(ctx, error):
+    async def prefix_error(self, ctx, error):
         if isinstance(error, commands.MissingPermissions):
             e = discord.Embed(title='Error', description='Sorry, only a moderator can change the prefix of the bot.',
                             color=red)
