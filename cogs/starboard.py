@@ -187,7 +187,7 @@ async def StarboardFromMessage(message_, limit, bot):
 
 #Main
 
-class Starboard(commands.Cog):
+class starboard(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
     
@@ -298,7 +298,7 @@ class Starboard(commands.Cog):
 
 
 def setup(bot):
-    bot.add_cog(Starboard(bot))
+    bot.add_cog(starboard(bot))
 
 if __name__ == '__main__':
     os.system(r'C:/Users/Cameron/AppData/Local/Programs/Python/Python39/python.exe "e:\workspace\idiotbot\idiot bot.py"')

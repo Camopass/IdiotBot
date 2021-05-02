@@ -1,10 +1,12 @@
-import discord, asyncio, os, sys
+import discord
+import asyncio
+import os
+import sys
+import aiohttp
+import re
 from discord.ext import commands
 from PIL import Image, ImageFilter
 from io import BytesIO
-
-# (111, 213), (302, 403)
-
 
 global green, red
 green = 0x7ae19e
@@ -21,60 +23,119 @@ class HiddenPrints:
         sys.stdout = self._original_stdout
 
 
+class ImageConverter(commands.Converter):
+    '''
+    Convert any argument into an image if possible.
+    This will not work with images attached to the message.
+    If you want it to work with images on the message,
+    add =None after the argument, then in the function:
+        if arg is None:
+            arg = await ImageConverter().image(ctx.message)
+    '''
+    async def convert(self, ctx, argument):
+        r = re.search(r'<a?:\w+:\d{18}>', argument)
+        if r:
+            emoji = await commands.EmojiConverter().convert(ctx, argument)
+            asset = emoji.url_as(format='png')
+            data = BytesIO(await asset.read())
+            return data
+        elif re.search(r'https?://.+\.(png|jpg|jpeg)', argument):
+            async with aiohttp.ClientSession() as session:
+                async with session.get(argument) as resp:
+                    if resp.status == 200:
+                        return BytesIO(await resp.read())
+        else:
+            try:
+                user = await commands.MemberConverter().convert(ctx, argument)
+            except commands.MemberNotFound:
+                await ctx.send(f'`{argument}`')
+            else:
+                avatar = user.avatar_url_as(format='png')
+                data = BytesIO(await avatar.read())
+                return data
+    
+    
+    async def image(self, message):
+        if len(message.attachments) > 0:
+            attachment = message.attachments[0]
+            if attachment.height is not None:
+                return BytesIO(await attachment.read())
+        else:
+            user = message.author
+            avatar = user.avatar_url_as(format='png')
+            data = BytesIO(await avatar.read())
+            return data
 
-class Images(commands.Cog):
+
+
+class images(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+    
+    @commands.command()
+    async def idiot(self, ctx, image:ImageConverter=None):
+        if image is None:
+            image = await ImageConverter().image(ctx.message)
+        image = discord.File(image, filename='Image.png')
+        await ctx.send(file=image)
+
 
     @commands.command(description='Put a person\'s face on a wanted poster!')
-    async def wanted(self, ctx, member:discord.Member=None):
-        if member == None:
-            member = ctx.author
-        
-        wanted = Image.open(r'E:\workspace\idiotbot\Wanted.jpg')
-        asset = member.avatar_url_as(size=128)
-        data = BytesIO(await asset.read())
-        pfp = Image.open(data)
-        pfp = pfp.resize((192, 192))
-        wanted.paste(pfp, (111, 213))
-        wanted.save('WantedPfp.jpg')
-        image = discord.File(r'E:\workspace\WantedPfp.jpg', filename='WantedPfp.jpg')
-        e = discord.Embed(title=f'Wanted: **{member.name}**', color=green)
-        e.set_image(url='attachment://WantedPfp.jpg')
+    async def wanted(self, ctx, *, image:ImageConverter=None):
+        if image is None:
+            image = await ImageConverter().image(ctx.message)
+        pfp = Image.open(image)
+        wanted = Image.open(r'E:\workspace\idiotbot\Wanted.png')
+        pfp = pfp.resize((192, 192)).convert('RGBA')
+        wanted.alpha_composite(pfp, (111, 213))
+        im = BytesIO()
+        wanted.save(im, 'PNG')
+        im = im.getvalue()
+        image = discord.File(BytesIO(im), filename='Wanted.png')
+        e = discord.Embed(title=f'Wanted', color=green)
+        e.set_image(url='attachment://Wanted.png')
+        await ctx.send(file=image, embed=e)
+    
+
+    @commands.command()
+    async def bonk(self, ctx, *, image:ImageConverter=None):
+        if image is None:
+            image = await ImageConverter().image(ctx.message)
+        dog = Image.open(r'E:\workspace\idiotbot\bonk.png')
+        pfp = Image.open(image)
+        pfp = pfp.resize((206, 206)).convert('RGBA')
+        dog.alpha_composite(pfp, (461, 193))
+        im = BytesIO()
+        dog.save(im, 'PNG')
+        im = im.getvalue()
+        image = discord.File(BytesIO(im), 'Bonk.png')
+        e = discord.Embed(title=f'Bonk', color=green)
+        e.set_image(url='attachment://Bonk.png')
         await ctx.send(file=image, embed=e)
 
+
     @commands.command(description='Resize an image.')
-    async def resize(self, ctx, width:int, height:int, emote:discord.Emoji=None):
-        image = None
+    async def resize(self, ctx, width:int, height:int, image:ImageConverter=None):
+        if image is None:
+            image = await ImageConverter().image(ctx.message)
+        if width > 2000 or height > 2000 or width < 1 or height < 1:
+            return await ctx.send('Invalid Dimensions')
 
         async def size(image0):
             w0, h0 = image0.size
             image0 = image0.resize((width, height))
-            image0.save('ResizeImage.png')
+            im = BytesIO()
+            image0.save(im, 'PNG')
+            im = im.getvalue()
             image0 = discord.File(
-                'ResizeImage.png', filename='ResizeImage.png')
+                BytesIO(im), filename='ResizeImage.png')
             e = discord.Embed(
                 title=f'Resized from: {w0}, {h0} to {width}, {height}', color=green)
             e.set_image(url='attachment://ResizeImage.png')
             await ctx.send(file=image0, embed=e)
 
-        if len(ctx.message.attachments) == 0:
-            if emote == None:
-                return await ctx.send(embed=discord.Embed(title='Error', description='Please attach an image to resize.'), color=red)
-            else:
-                image = await emote.url.save('Emote.png')
-                image = Image.open(r'E:\workspace\Emote.png')
-                await size(image)
-        elif width >= 1921 or height >= 1081:
-            return await ctx.send(embed=discord.Embed(title='Error', description='Please choose a size under 1920x1080', color=red))
-        elif ctx.message.attachments[0].height == None:
-            return await ctx.send(embed=discord.Embed(title='Error', description='Please attach an image you idiot.', color=red))
-        elif ctx.message.attachments[0].height >= 2001 or ctx.message.attachments[0].width >= 2001:
-            return await ctx.send(embed=discord.Embed(title='Error', description='Please attach an image under 2000x2000.', color=red))
-        else:
-            image = ctx.message.attachments[0]
-            image = BytesIO(await image.read())
-            await size(Image.open(image))
+        await size(Image.open(image))
+
 
     @commands.command(description='Jesuslaser something.')
     async def jesuslaser(self, ctx, *, target: str):
@@ -93,4 +154,8 @@ class Images(commands.Cog):
 
 
 def setup(bot):
-    bot.add_cog(Images(bot))
+    bot.add_cog(images(bot))
+
+
+if __name__ == '__main__':
+    os.system(r'C:/Users/Cameron/AppData/Local/Programs/Python/Python39/python.exe "e:/workspace/idiotbot/idiot bot.py"')

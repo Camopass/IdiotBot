@@ -2,6 +2,10 @@ import asyncio
 import os
 import discord
 import youtube_dl
+import datetime
+import aiosqlite3
+import datetime
+import math
 from discord.ext import commands, menus
 
 global queue
@@ -9,6 +13,8 @@ queue = {}
 
 import idiotlibrary
 from idiotlibrary import red, green, trim_str
+
+databasedir = 'idiotbot.db'
 
 '''
 TODO:
@@ -44,6 +50,10 @@ ffmpeg_options = {
 ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 
 
+class PlayerError(Exception):
+    pass
+
+
 class PlayerMenu(menus.Menu):
     def __init__(self, embed:discord.Embed, voice_client):
         super().__init__()
@@ -70,7 +80,7 @@ class PlayerMenu(menus.Menu):
         await self.client.disconnect()
         self.stop()
         await self.message.clear_reactions()
-
+        queue[self.ctx.guild.id] = []
 
 
 class YTDLSource(discord.PCMVolumeTransformer):
@@ -101,6 +111,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         filename = data['url'] if stream else ytdl.prepare_filename(data)
         return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data)
 
+
 class Embed:
     def __init__(self, player, author):
         embed = discord.Embed(title=f"Now playing **{player.title}**",
@@ -114,6 +125,61 @@ class Embed:
         self.embed = embed
 
 
+class AlreadyQueued(Exception):
+    pass
+
+
+class Song:
+    def __init__(self, channel_id:int, guild_id:int, author_id:int,
+    song_name:str, song_url:str, song_author:str, song_likes:int,
+    song_length:str, started_at:str, queue_id:int):
+        self.channel_id = channel_id
+        self.guild_id = guild_id
+        self.author_id = author_id
+        self.song_name = song_name
+        self.url = song_url
+        self.song_author = song_author
+        self.song_likes = song_likes
+        self.song_length = song_length
+        self.started_at = started_at
+        self.length_delta = datetime.timedelta(seconds=self.song_length)
+        self.id = id(self.url)
+        self.queue_id = queue_id
+    
+    def __str__(self):
+        return self.song_name
+
+    def __len__(self):
+        return math.ceil(self.song_length)
+    
+    def __ge__(self, other):
+        return self.song_length >= other.song_length
+
+    def __le__(self, other):
+        return self.song_length <= other.song_length
+    
+    def __lt__(self, other):
+        return self.song_length < other.song_length
+    
+    def __ne__(self, other):
+        return self.url != other.url
+    
+    def __eq__(self, other):
+        return self.url == other.url
+    
+    def __add__(self, other):
+        return self.song_length + other.song_length
+    
+    async def save(self):
+        async with aiosqlite3.connect(databasedir) as db:
+            await db.execute('INSERT INTO queues VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', (self.channel_id,
+            self.guild_id, self.author_id, self.song_name, self.url, self.song_author, self.song_likes, self.song_length, self.queue_id))
+            await db.commit()
+    
+    async def length_as_timedelta(self):
+        return datetime.timedelta(seconds=self.song_length)
+
+
 def convert(seconds):
     seconds = seconds % (24 * 3600)
     hour = seconds // 3600
@@ -123,9 +189,10 @@ def convert(seconds):
 
     return "%d:%02d:%02d" % (hour, minutes, seconds)
 
+
 async def do_play(ctx, self, player_menu):
     if ctx.voice_client:
-        player = await YTDLSource.from_url(queue[ctx.guild.id][0], loop=self.bot.loop, stream=False)
+        player = await YTDLSource.from_url(queue[ctx.guild.id][0].url, loop=self.bot.loop, stream=False)
         ctx.voice_client.play(player, after=lambda e: print('Player error: %s' % e) if e else None)
         try:
             while ctx.voice_client.is_connected():
@@ -137,7 +204,7 @@ async def do_play(ctx, self, player_menu):
                         queue[ctx.guild.id].pop(0)
                         async with ctx.typing():
                             if len(queue[ctx.guild.id]) != 0:
-                                player = await YTDLSource.from_url(queue[ctx.guild.id][0], loop=self.bot.loop, stream=False)
+                                player = await YTDLSource.from_url(queue[ctx.guild.id][0].url, loop=self.bot.loop, stream=False)
                                 ctx.voice_client.play(player, after=lambda e: print(
                                     'Player error: %s' % e) if e else None)
                                 embed = Embed(player, ctx.author)
@@ -150,24 +217,50 @@ async def do_play(ctx, self, player_menu):
                                 await player_menu.message.clear_reactions()
                                 await ctx.voice_client.disconnect()
                 await asyncio.sleep(0.1)
+            queue[ctx.guild.id] = []
         except AttributeError:
             pass
     else:
         raise RuntimeError('Bot is not connected to voice channel.')
 
+'''
 
-class Music(commands.Cog):
+
+async def run_queue(self, ctx, queue:Queue):
+    if ctx.voice_client is None or ctx.voice_client.is_connected() == False:
+        raise PlayerError('Voice Client not found.')
+    song = queue.queue[queue.is_on]
+    async with ctx.typing():
+        player = await YTDLSource.from_url(song.url, loop=self.bot.loop, stream=False)
+        ctx.voice_client.play(player, after=lambda e: print(
+            'Player Error: %s' % e) if e else None)
+    e = Embed(player, ctx.author)
+    await ctx.send(embed=e.embed)
+    while ctx.voice_client.is_connected():
+        if ctx.voice_client.is_playing() and not ctx.voice_client.is_paused():
+            ctx.voice_client.stop()
+            song = queue.next()
+            async with ctx.typing():
+                player = await YTDLSource.from_url(song.url, loop=self.bot.loop, stream=False)
+                ctx.voice_client.play(player, after=lambda e: print(
+                    'Player Error: %s' % e) if e else None)
+            e = Embed(player, ctx.author)
+            await ctx.send(embed=e.embed)
+            return
+        else:
+            pass'''
+
+
+class music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
 
     async def joinvc(self, channel, vc):
         if vc is not None:
             return await vc.move_to(channel)
         await channel.connect()
 
-    @commands.Cog.listener()
-    async def on_guild_join(self, guild):
-        await guild.me.edit(deafen=True)
 
     @commands.command(aliases=["j", "connect"])
     async def join(self, ctx):
@@ -181,9 +274,9 @@ class Music(commands.Cog):
             member = ctx.guild.me
             await member.edit(deafen=True)
 
+
     @commands.command(aliases=["p"])
     async def play(self, ctx, *, url: str = None):
-        # if len(queue) == 0:
         if url is None:
             ctx.voice_client.resume()
             await ctx.message.add_reaction("\U0001f44d")
@@ -192,7 +285,8 @@ class Music(commands.Cog):
                 if ctx.guild.id in queue.keys():
                     async with ctx.typing():
                         player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
-                        queue[ctx.guild.id].append(player.title)
+                        song = Song(ctx.channel.id, ctx.guild.id, ctx.author.id, player.title, player.url, player.author, player.likes, player.length, datetime.datetime.now(), id(str(ctx.author.id) + str(ctx.guild.id)))
+                        queue[ctx.guild.id].append(song)
                         embed = discord.Embed(title=f"Queued **{player.title}**",
                                               description=f"Queued: **[{player.title}]({player.url})** ({convert(player.length)})",
                                               color=green)
@@ -202,21 +296,60 @@ class Music(commands.Cog):
                         return await ctx.send(embed=embed)
             channel = ctx.message.author.voice.channel
             await self.joinvc(channel, ctx.voice_client)
-            member = ctx.guild.me
-            await member.edit(deafen=True)
+            try:
+                member = ctx.guild.me
+                await member.edit(deafen=True)
+            except discord.errors.Forbidden:
+                await ctx.send('Could you please deafen me? It helps make the bot faster and better.')
             async with ctx.typing():
                 player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=False)
                 if not ctx.guild.id in queue.keys():
-                    queue[ctx.guild.id] = [player.title]
+                    song = song = Song(ctx.channel.id, ctx.guild.id, ctx.author.id, player.title, player.url, player.author,
+                                       player.likes, player.length, datetime.datetime.now(), id(str(ctx.author.id) + str(ctx.guild.id)))
+                    queue[ctx.guild.id] = [song]
                 if len(queue[ctx.guild.id]) == 0:
-                    queue[ctx.guild.id] = [player.title]
+                    song = song = Song(ctx.channel.id, ctx.guild.id, ctx.author.id, player.title, player.url, player.author,
+                                       player.likes, player.length, datetime.datetime.now(), id(str(ctx.author.id) + str(ctx.guild.id)))
+                    queue[ctx.guild.id] = [song]
                 #ctx.voice_client.play(player, after=lambda e: print('Player error: %s' % e) if e else None)
             embed = Embed(player, ctx.author)
             #await ctx.send(embed=embed.embed)
             menu = PlayerMenu(embed.embed, ctx.voice_client)
             await menu.start(ctx)
             await do_play(ctx, self, menu)
-            
+    
+
+    '''
+    @commands.command(aliases=['p'])
+    async def play(self, ctx, *, song:str=None):
+        if song is None:
+            if ctx.voice_client != None:
+                if (not ctx.voice.is_playing()) and ctx.voice_client.is_connected():
+                    ctx.voice_client.resume()
+        else:
+            if ctx.voice_client != None:
+                async with aiosqlite3.connect(databasedir) as db:
+                    c = await db.execute('SELECT * FROM QueueID WHERE guild_id=?', (ctx.guild.id,))
+                    if c is None:
+                        qid = id(str(ctx.author.id)+str(ctx.author.id))
+                        async with ctx.typing():
+                            player = await YTDLSource.from_url(song, loop=self.bot.loop, stream=False)
+                        song = Song(ctx.channel.id, ctx.guild.id, ctx.author.id, player.name, player.url,
+                        player.author, player.likes, player.length, datetime.datetime.now(), qid)
+                        q = Queue(ctx.author.id, ctx.guild.id, [song])
+                        await db.execute('INSERT INTO QueueID VALUES (?, ?)', (ctx.guild.id, qid))
+                        await db.commit()
+                        await q.save()
+                        await run_queue(self, ctx, q)
+                    if ctx.voice_client.is_connected() and ctx.voice_client.is_playing():
+                        c = await db.execute('SELECT queue_id FROM QueueID WHERE guild_id=?', (ctx.guild.id,))
+                        queue_id, = await c.fetchone()
+                        c = await db.execute('SELECT * FROM queues WHERE queue_id=?', (queue_id,))
+
+            player = await YTDLSource.from_url(song, loop=self.bot.loop, stream=False)
+            song = Song(ctx.channel.id, ctx.guild.id, ctx.author.id, player.title, player.url,
+                        player.author, player.likes, player.length, datetime.datetime.now(), id(str(ctx.author.id)+str(ctx.author.id)))
+    '''
 
 
     @commands.command()
@@ -225,19 +358,45 @@ class Music(commands.Cog):
             if len(queue[ctx.guild.id]) != 0:
                 q = []
                 for song in queue[ctx.guild.id]:
-                    s = trim_str(song, 25)
-                    if len(song) > 25:
+                    s = trim_str(song.song_name, 25)
+                    if len(song.song_name) > 25:
                         s += '...'
-                    sp_count = 36 - len(s)
+                    sp_count = 30 - len(s)
                     s += ''.join(' ' for x in range(sp_count))
-                    s += '|'
+                    s += f'| {convert(len(song))}'
                     q.append(s)
                 lis = '\n'.join(q)
-                await ctx.send(embed=discord.Embed(title='Queue', description=f'```{lis}```', color=green))
+                totalen = [await s.length_as_timedelta() for s in queue[ctx.guild.id]]
+                l = datetime.timedelta(seconds=0)
+                for length in totalen:
+                    l = l + length
+                length = convert(l.total_seconds())
+                await ctx.send(embed=discord.Embed(title='Queue', description=f' {l} ```{lis}```', color=green))
             else:
-                await ctx.send('Queue is empty. Use ?play [song] to add a song to the queue.')
+                await ctx.send(f'Queue is empty. Use {ctx.prefix}play [song] to add a song to the queue.')
         else:
-            await ctx.send('Queue is empty. Use ?play [song] to add a song to the queue.')
+            await ctx.send(f'Queue is empty. Use {ctx.prefix}play [song] to add a song to the queue.')
+    
+
+    @commands.command(aliases=['playing', 'current'])
+    async def now(self, ctx):
+        if ctx.guild.id in queue.keys():
+            if len(queue[ctx.guild.id]) != 0:
+                now = datetime.datetime.now()
+                song = queue[ctx.guild.id][0]
+                time_left = song.length_delta - (now - song.started_at)
+                e = discord.Embed(title=song.song_name,
+                description=f'Requested by <@{song.author_id}> • {convert(time_left.total_seconds())} left',
+                color=green,
+                url=song.url)
+                e.set_footer(text=f'By {song.song_author} • {song.song_likes} likes')
+                await ctx.send(embed=e)
+    
+
+    @commands.command(aliases=['next'])
+    async def skip(self, ctx):
+        ctx.voice_client.stop()
+        await ctx.message.add_reaction('\U0001f44d')
 
 
     @commands.command(aliases=["loudness", "v"])
@@ -253,10 +412,12 @@ class Music(commands.Cog):
         ctx.voice_client.source.volume = volume / 100
         await ctx.send(f"\U0001f44d Volume is now {volume}%")
 
+
     @commands.command(aliases=["leave", "disconnect"])
     async def stop(self, ctx):
         """Stops and disconnects the bot from voice"""
         await ctx.voice_client.disconnect()
+
 
     @commands.command()
     async def pause(self, ctx):
@@ -280,8 +441,8 @@ class Music(commands.Cog):
                 raise commands.CommandError("Author not connected to a voice channel.")
 
 
-def setup(client):
-    client.add_cog(Music(client))
+def setup(bot):
+    bot.add_cog(music(bot))
 
 
 if __name__ == '__main__':

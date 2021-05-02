@@ -37,7 +37,7 @@ class HelpCmd(commands.MinimalHelpCommand):
         things = []
         for cog, _ in mapping.items():
             cog_name = getattr(cog, "qualified_name", "No Category")
-            if cog_name in ['Jishaku', 'Help', 'BotLoop']:
+            if cog_name in ['Jishaku', 'help', 'botloop']:
                 continue
             things.append(cog_name)
         things = ' \n -- '.join(things[:-1])
@@ -61,21 +61,32 @@ class HelpCmd(commands.MinimalHelpCommand):
         commands = cog.get_commands()
         res = []
         for command in commands:
-            res.append(command.name)
+            if not command.hidden:
+                res.append(command.name)
         commands = ' \n -- '.join(res)
         embed = discord.Embed(title=f'Cog: {cog.qualified_name}', description=f'``` -- {commands}```', color=green)
+        await self.get_destination().send(embed=embed)
+    
+    async def send_group_help(self, group):
+        embed = discord.Embed(
+            title=self.clean_prefix + group.name,
+            description=group.description.format(self.clean_prefix),
+            color=green
+        )
+        for command in group.commands:
+            embed.add_field(name=command.name, value=command.description.format(self.clean_prefix) or 'None')
         await self.get_destination().send(embed=embed)
 
 
 
-class Help(commands.Cog):
+class help(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.bot.help_command = HelpCmd()
 
 
 def setup(client):
-    client.add_cog(Help(client))
+    client.add_cog(help(client))
 
 if __name__ == '__main__':
     os.system(r'C:/Users/Cameron/AppData/Local/Programs/Python/Python39/python.exe "e:\workspace\idiotbot\idiot bot.py"')
